@@ -1,0 +1,9 @@
+from fastapi import APIRouter
+
+from app.api.routes import health, internal_review, reviewer_tasks
+
+api_router = APIRouter()
+api_router.include_router(health.router)
+api_router.include_router(reviewer_tasks.router, prefix="/reviewer", tags=["reviewer"])
+internal_router = APIRouter()
+internal_router.include_router(internal_review.router, prefix="/designated-review", tags=["internal-algorithm"])

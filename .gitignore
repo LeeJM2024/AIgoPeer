@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+backend/.env
+
+# Node / Vue
+frontend/node_modules/
+frontend/dist/
+
+# Runtime data and secrets
+.env
+*.log
+storage/
+postgres-data/
+redis-data/
+
+# IDE / OS
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
+
+# Course artifacts are large or may contain personal data
+*.mp4
+*.zip
+!samples/*.zip
