@@ -35,11 +35,13 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://algopeer:change-me-before-demo@db:5432/algopeer}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       JWT_SECRET: ${JWT_SECRET:-development-only-change-me}
+      STORAGE_DIR: ${STORAGE_DIR:-/app/storage}
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
       - ./algorithm:/app/algorithm
+      - ./storage:/app/storage
     depends_on:
       db:
         condition: service_healthy

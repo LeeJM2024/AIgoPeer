@@ -37,6 +37,7 @@ and its tables are introduced in a later iteration.
                 WHERE submission.assignment_id = a.id
                   AND submission.author_id = :student_id
                   AND a.type = 'FINAL_PROJECT'
+                  AND submission.is_current = TRUE
                 ORDER BY submission.submitted_at DESC NULLS LAST, submission.id DESC
                 LIMIT 1
             ) AS latest_submission ON TRUE

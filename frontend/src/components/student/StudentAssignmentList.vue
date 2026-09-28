@@ -49,7 +49,14 @@ const submissionLabel = (assignment) => {
         </div>
       </dl>
 
-      <button type="button" disabled title="该功能将在下一迭代开放">下一迭代开放</button>
+      <RouterLink
+        v-if="assignment.type === 'FINAL_PROJECT'"
+        class="action-link"
+        :to="`/student/assignments/${assignment.id}/project-submission`"
+      >
+        认领并上传
+      </RouterLink>
+      <button v-else type="button" disabled title="代码提交功能将在下一迭代开放">下一迭代开放</button>
     </li>
   </ul>
 </template>
@@ -66,5 +73,6 @@ const submissionLabel = (assignment) => {
 dt { color: #667085; font-size: 13px; }
 dd { margin: 5px 0 0; font-size: 14px; overflow-wrap: anywhere; }
 button { padding: 8px 12px; border: 0; border-radius: 6px; color: #667085; background: #eaecf0; cursor: not-allowed; }
+.action-link { display: inline-block; width: fit-content; padding: 8px 12px; border-radius: 6px; color: white; background: #0d4d3a; text-decoration: none; }
 @media (max-width: 680px) { .assignment-card__details { grid-template-columns: 1fr; } }
 </style>

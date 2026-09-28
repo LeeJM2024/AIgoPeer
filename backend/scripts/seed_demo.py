@@ -77,6 +77,10 @@ def main() -> None:
         for order, (name, max_score) in enumerate((("原理讲解", 30), ("例题与实现", 35), ("材料完整", 20), ("表达与规范", 15)), start=1):
             db.execute(text("INSERT INTO rubric_items(rubric_id, name, max_score, sort_order) VALUES (:r, :n, :m, :o)"), {"r": rubric_id, "n": name, "m": max_score, "o": order})
 
+        topic_ids = list(db.execute(text("SELECT id FROM topics ORDER BY code")).scalars())
+        if len(topic_ids) < 8:
+            raise RuntimeError("the topic catalog must be seeded before demo data")
+
         for target_class, reviewer_class in ((1, 2), (2, 1)):
             panel_id = scalar_id(
                 db,
@@ -88,11 +92,24 @@ def main() -> None:
                 db.execute(text("INSERT INTO panel_reviewers(panel_id, reviewer_id) VALUES (:panel_id, :reviewer_id)"), {"panel_id": panel_id, "reviewer_id": reviewer_id})
             db.execute(text("UPDATE review_panels SET status = 'ACTIVE' WHERE id = :panel_id"), {"panel_id": panel_id})
             for sequence, author_id in enumerate(students[target_class][:8], start=1):
+                topic_claim_id = scalar_id(
+                    db,
+                    """INSERT INTO topic_claims(assignment_id, student_id, topic_id)
+                       VALUES (:assignment_id, :student_id, :topic_id)
+                       ON CONFLICT (assignment_id, student_id) DO UPDATE SET topic_id = EXCLUDED.topic_id
+                       RETURNING id""",
+                    assignment_id=assignment_id,
+                    student_id=author_id,
+                    topic_id=topic_ids[sequence - 1],
+                )
                 submission_id = scalar_id(
                     db,
-                    """INSERT INTO submissions(assignment_id, author_id, class_id, status, anonymous_token, submitted_at)
-                       VALUES (:assignment_id, :author_id, :class_id, 'VALID', :token, now()) RETURNING id""",
-                    assignment_id=assignment_id, author_id=author_id, class_id=class_ids[target_class], token=f"DEMO-{target_class}-{sequence:02d}",
+                    """INSERT INTO submissions(
+                         assignment_id, author_id, class_id, status, anonymous_token, submitted_at, topic_claim_id
+                       ) VALUES (
+                         :assignment_id, :author_id, :class_id, 'VALID', :token, now(), :topic_claim_id
+                       ) RETURNING id""",
+                    assignment_id=assignment_id, author_id=author_id, class_id=class_ids[target_class], token=f"DEMO-{target_class}-{sequence:02d}", topic_claim_id=topic_claim_id,
                 )
                 db.execute(text("INSERT INTO material_checks(submission_id, status, checked_at) VALUES (:id, 'VALID', now())"), {"id": submission_id})
                 for reviewer_id in students[reviewer_class][:5]:
