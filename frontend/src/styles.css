@@ -1,9 +1,10 @@
-:root { font-family: "Microsoft YaHei", system-ui, sans-serif; color: #1d2939; background: #f7f9fc; }
+:root { font-family: "Microsoft YaHei", system-ui, sans-serif; color: #1d2939; background: #0a3328; }
 * { box-sizing: border-box; }
-body { margin: 0; }
-.app-header { height: 58px; display: flex; align-items: center; gap: 28px; padding: 0 8vw; background: #12355b; }
-.app-header a { color: #eaf2ff; text-decoration: none; margin-right: 18px; }
+body { min-height: 100vh; margin: 0; background: linear-gradient(145deg, #062c22, #0f513d 55%, #0a3328); }
+.app-header { height: 64px; display: flex; align-items: center; gap: 28px; padding: 0 max(20px, 8vw); border-bottom: 1px solid #ffffff24; background: #062c22; }
+.app-header a { color: #dcefe3; text-decoration: none; margin-right: 18px; }
+.app-header a.router-link-active { color: white; }
 .app-header .brand { font-size: 20px; font-weight: 700; }
-.page-shell { max-width: 1024px; margin: 36px auto; padding: 0 20px; }
-.card { background: white; border-radius: 10px; box-shadow: 0 3px 14px #1d293918; padding: 28px; }
+.page-shell { max-width: 1024px; margin: 36px auto; padding: 0 20px 48px; }
+.card { background: white; border-radius: 12px; box-shadow: 0 12px 32px #011a1238; padding: 28px; }
 .error { color: #b42318; }
