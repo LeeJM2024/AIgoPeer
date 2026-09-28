@@ -34,6 +34,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://algopeer:change-me-before-demo@db:5432/algopeer}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_SECRET: ${JWT_SECRET:-development-only-change-me}
     ports:
       - "8000:8000"
     volumes:
