@@ -1,26 +1,30 @@
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 
-class RubricItemInput(BaseModel):
+class TeacherInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, allow_inf_nan=False)
+
+
+class RubricItemInput(TeacherInput):
     name: str = Field(min_length=1, max_length=100)
-    max_score: Decimal = Field(gt=0, le=1000)
+    max_score: Decimal = Field(gt=0, le=1000, decimal_places=2)
     sort_order: int = Field(ge=1)
     description: str | None = Field(default=None, max_length=2000)
 
 
-class AssignmentCreate(BaseModel):
+class AssignmentCreate(TeacherInput):
     title: str = Field(min_length=1, max_length=200)
     type: str = Field(pattern="^(PROGRAMMING|FINAL_PROJECT)$")
     class_ids: list[int] = Field(min_length=2, max_length=2)
-    submit_deadline: datetime
-    review_deadline: datetime
-    teacher_weight: Decimal = Field(ge=0, le=1)
-    designated_review_weight: Decimal = Field(ge=0, le=1)
+    submit_deadline: AwareDatetime
+    review_deadline: AwareDatetime
+    teacher_weight: Decimal = Field(ge=0, le=1, decimal_places=4)
+    designated_review_weight: Decimal = Field(ge=0, le=1, decimal_places=4)
     rubric_items: list[RubricItemInput] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -32,6 +36,8 @@ class AssignmentCreate(BaseModel):
         if self.teacher_weight + self.designated_review_weight != Decimal(1):
             raise ValueError("teacher_weight and designated_review_weight must sum to 1")
         orders = [item.sort_order for item in self.rubric_items]
+        if sum(item.max_score for item in self.rubric_items) > Decimal("99999.99"):
+            raise ValueError("rubric total exceeds supported score range")
         if len(orders) != len(set(orders)):
             raise ValueError("rubric sort_order values must be unique")
         return self
@@ -65,20 +71,54 @@ class ReviewPanelsInput(BaseModel):
         return self
 
 
-class RubricScoreInput(BaseModel):
+class RubricScoreInput(TeacherInput):
     rubric_item_id: int
-    score: Decimal = Field(ge=0)
+    score: Decimal = Field(ge=0, decimal_places=2)
 
 
-class TeacherGradeInput(BaseModel):
+class TeacherGradeInput(TeacherInput):
     rubric_scores: list[RubricScoreInput] = Field(min_length=1)
     comment: str = Field(default="", max_length=5000)
 
 
 class TeacherGradeCorrectionInput(TeacherGradeInput):
+    expected_version: int = Field(ge=1)
     reason: str = Field(min_length=3, max_length=1000)
 
 
-class AnomalyResolutionInput(BaseModel):
+class AnomalyResolutionInput(TeacherInput):
     status: str = Field(pattern="^(CONFIRMED|DISMISSED)$")
     note: str = Field(min_length=2, max_length=2000)
+
+
+class ClassInput(TeacherInput):
+    name: str = Field(min_length=1, max_length=100)
+    course_term: str = Field(min_length=1, max_length=64)
+
+
+class StudentInput(TeacherInput):
+    student_no: str = Field(min_length=1, max_length=32)
+    name: str = Field(min_length=1, max_length=100)
+    password: (
+        Annotated[str, StringConstraints(strip_whitespace=False, min_length=10, max_length=128)]
+        | None
+    ) = None
+
+
+class StudentImportInput(TeacherInput):
+    students: list[StudentInput] = Field(min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def unique_accounts(self):
+        if len({s.student_no for s in self.students}) != len(self.students):
+            raise ValueError("duplicate student numbers in import")
+        return self
+
+
+class ReviewDeadlineInput(TeacherInput):
+    review_deadline: AwareDatetime
+    reason: str = Field(min_length=3, max_length=1000)
+
+
+class DraftAssignmentUpdate(AssignmentCreate):
+    expected_updated_at: AwareDatetime

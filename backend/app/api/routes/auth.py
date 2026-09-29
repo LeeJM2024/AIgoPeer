@@ -1,21 +1,24 @@
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import CurrentUser, get_current_user, verify_password
+from app.core.security import CurrentUser, get_current_user, hash_password, verify_password
 from app.db.session import get_db
 from app.schemas.auth import LoginInput
 from app.schemas.common import ApiResponse
+from app.services.login_throttle import admit_login
 
 router = APIRouter()
+_DUMMY_HASH = hash_password("dummy-account-timing-only")
 
 
 @router.post("/login", response_model=ApiResponse)
-def login(payload: LoginInput, db: Session = Depends(get_db)) -> ApiResponse:
+def login(payload: LoginInput, request: Request, db: Session = Depends(get_db)) -> ApiResponse:
+    admit_login(db, payload.account, request.client.host if request.client else "unknown")
     user = (
         db.execute(
             text(
@@ -26,7 +29,10 @@ def login(payload: LoginInput, db: Session = Depends(get_db)) -> ApiResponse:
         .mappings()
         .one_or_none()
     )
-    if user is None or not verify_password(payload.password, user["password_hash"]):
+    password_valid = verify_password(
+        payload.password, user["password_hash"] if user else _DUMMY_HASH
+    )
+    if user is None or not password_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CREDENTIALS")
     now = datetime.now(UTC)
     token = jwt.encode(

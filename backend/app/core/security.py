@@ -7,7 +7,7 @@ import os
 from dataclasses import dataclass
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import settings
@@ -51,10 +51,15 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHENTICATED")
     try:
         payload = jwt.decode(
-            credentials.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+            credentials.credentials,
+            settings.jwt_secret,
+            algorithms=[settings.jwt_algorithm],
+            options={"require": ["sub", "role", "exp", "iat"]},
         )
+        if payload["role"] not in {"TEACHER", "STUDENT"} or int(payload["sub"]) <= 0:
+            raise ValueError("invalid identity")
         return CurrentUser(id=int(payload["sub"]), system_role=str(payload["role"]))
-    except (jwt.PyJWTError, KeyError, ValueError) as exc:
+    except (jwt.PyJWTError, KeyError, ValueError, TypeError) as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHENTICATED"
         ) from exc
@@ -64,3 +69,12 @@ def require_teacher(user: CurrentUser = Depends(get_current_user)) -> CurrentUse
     if user.system_role != "TEACHER":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="FORBIDDEN")
     return user
+
+
+def require_internal_service(x_internal_token: str | None = Header(default=None)) -> None:
+    if not settings.internal_api_token:
+        raise HTTPException(503, "INTERNAL_SERVICE_NOT_CONFIGURED")
+    if not x_internal_token or not hmac.compare_digest(
+        x_internal_token.encode(), settings.internal_api_token.encode()
+    ):
+        raise HTTPException(403, "FORBIDDEN")

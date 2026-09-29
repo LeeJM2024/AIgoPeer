@@ -13,7 +13,13 @@ from app.core.config import settings
 from app.core.security import CurrentUser, require_teacher
 from app.db.session import get_db
 from app.schemas.common import ApiResponse
-from app.schemas.teacher import AssignmentCreate, ReviewPanelsInput
+from app.schemas.teacher import (
+    AssignmentCreate,
+    DraftAssignmentUpdate,
+    ReviewDeadlineInput,
+    ReviewPanelsInput,
+)
+from app.services.teacher_workflow import audit, lock_assignment, validate_saved_panels
 from app.services.video_ai_provider import get_video_provider_status
 
 router = APIRouter()
@@ -109,13 +115,11 @@ def list_assignments(
             text("""
         SELECT a.id, a.title, a.type, a.status, a.submit_deadline, a.review_deadline,
                a.teacher_weight, a.designated_review_weight,
-               count(DISTINCT s.id) AS submission_count,
-               count(DISTINCT rt.id) AS review_task_count
+               (SELECT count(*) FROM submissions s WHERE s.assignment_id=a.id) AS submission_count,
+               (SELECT count(*) FROM review_tasks rt JOIN review_panels p ON p.id=rt.panel_id
+                 WHERE p.assignment_id=a.id) AS review_task_count
         FROM assignments a
-        LEFT JOIN submissions s ON s.assignment_id = a.id
-        LEFT JOIN review_panels p ON p.assignment_id = a.id
-        LEFT JOIN review_tasks rt ON rt.panel_id = p.id
-        GROUP BY a.id ORDER BY a.created_at DESC
+        ORDER BY a.created_at DESC
     """)
         )
         .mappings()
@@ -180,6 +184,14 @@ def create_assignment(
             """),
                 {"rubric_id": rubric_id, **item.model_dump()},
             )
+        audit(
+            db,
+            teacher.id,
+            "CREATE_ASSIGNMENT",
+            "assignment",
+            assignment_id,
+            after=payload.model_dump(),
+        )
         db.commit()
     except IntegrityError as exc:
         db.rollback()
@@ -249,7 +261,7 @@ def get_assignment(
 def configure_panels(
     assignment_id: int,
     payload: ReviewPanelsInput,
-    _: CurrentUser = Depends(require_teacher),
+    teacher: CurrentUser = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> ApiResponse:
     assignment = (
@@ -272,13 +284,23 @@ def configure_panels(
     if {payload.panels[0].target_class_id, payload.panels[0].reviewer_class_id} != class_ids:
         raise HTTPException(status_code=422, detail="PANEL_CLASSES_MUST_MATCH_ASSIGNMENT")
     for panel in payload.panels:
+        db.execute(
+            text("SELECT id FROM classes WHERE id = ANY(:ids) ORDER BY id FOR SHARE"),
+            {"ids": sorted(class_ids)},
+        ).all()
         enrolled = set(
             db.execute(
                 text("""
             SELECT e.user_id FROM enrollments e JOIN users u ON u.id = e.user_id
             WHERE e.class_id = :class_id AND e.user_id = ANY(:reviewer_ids) AND u.system_role = 'STUDENT'
+              AND NOT EXISTS (SELECT 1 FROM enrollments other
+                              WHERE other.user_id = e.user_id AND other.class_id = :target)
         """),
-                {"class_id": panel.reviewer_class_id, "reviewer_ids": panel.reviewer_ids},
+                {
+                    "class_id": panel.reviewer_class_id,
+                    "reviewer_ids": panel.reviewer_ids,
+                    "target": panel.target_class_id,
+                },
             ).scalars()
         )
         if enrolled != set(panel.reviewer_ids):
@@ -301,13 +323,18 @@ def configure_panels(
                 {"panel_id": panel_id, "reviewer_id": reviewer_id},
             )
         panel_ids.append(panel_id)
+    audit(
+        db, teacher.id, "CONFIGURE_PANELS", "assignment", assignment_id, after=payload.model_dump()
+    )
     db.commit()
     return ApiResponse(data={"panel_ids": panel_ids})
 
 
 @router.post("/assignments/{assignment_id}/publish", response_model=ApiResponse)
 def publish_assignment(
-    assignment_id: int, _: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)
+    assignment_id: int,
+    teacher: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
 ) -> ApiResponse:
     row = (
         db.execute(
@@ -320,6 +347,7 @@ def publish_assignment(
         raise _not_found()
     if row["status"] != "DRAFT":
         raise HTTPException(status_code=400, detail="ASSIGNMENT_NOT_DRAFT")
+    validate_saved_panels(db, assignment_id)
     panel_counts = (
         db.execute(
             text("""
@@ -344,13 +372,16 @@ def publish_assignment(
         text("UPDATE assignments SET status = 'PUBLISHED', updated_at = now() WHERE id = :id"),
         {"id": assignment_id},
     )
+    audit(db, teacher.id, "PUBLISH_ASSIGNMENT", "assignment", assignment_id)
     db.commit()
     return ApiResponse(data={"assignment_id": assignment_id, "status": "PUBLISHED"})
 
 
 @router.post("/assignments/{assignment_id}/initialize-review-tasks", response_model=ApiResponse)
 def initialize_review_tasks(
-    assignment_id: int, _: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)
+    assignment_id: int,
+    teacher: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
 ) -> ApiResponse:
     assignment = (
         db.execute(
@@ -370,13 +401,15 @@ def initialize_review_tasks(
         raise HTTPException(status_code=400, detail="SUBMISSION_DEADLINE_NOT_REACHED")
     pending_checks = db.execute(
         text("""
-        SELECT count(*) FROM material_checks mc JOIN submissions s ON s.id = mc.submission_id
-        WHERE s.assignment_id = :id AND mc.status = 'PENDING'
+        SELECT count(*) FROM submissions s LEFT JOIN material_checks mc ON mc.submission_id = s.id
+        WHERE s.assignment_id = :id AND s.status <> 'DRAFT'
+          AND (mc.status = 'PENDING' OR mc.id IS NULL)
     """),
         {"id": assignment_id},
     ).scalar_one()
     if pending_checks:
         raise HTTPException(status_code=424, detail="MATERIAL_CHECKS_PENDING")
+    validate_saved_panels(db, assignment_id)
     panels = (
         db.execute(
             text(
@@ -464,6 +497,7 @@ def initialize_review_tasks(
         ),
         {"id": assignment_id},
     )
+    audit(db, teacher.id, "INITIALIZE_REVIEW_TASKS", "assignment", assignment_id, after=results)
     db.commit()
     return ApiResponse(
         data={"assignment_id": assignment_id, "status": "REVIEWER_GRADING", "panels": results}
@@ -474,3 +508,172 @@ def initialize_review_tasks(
 def ai_video_status(_: CurrentUser = Depends(require_teacher)) -> ApiResponse:
     status_value = get_video_provider_status(settings)
     return ApiResponse(data=status_value.__dict__)
+
+
+@router.put("/assignments/{assignment_id}", response_model=ApiResponse)
+def edit_draft(
+    assignment_id: int,
+    payload: DraftAssignmentUpdate,
+    teacher: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    before = lock_assignment(db, assignment_id)
+    if before["status"] != "DRAFT":
+        raise HTTPException(409, "ASSIGNMENT_NOT_DRAFT")
+    if before["updated_at"] != payload.expected_updated_at:
+        raise HTTPException(409, "DRAFT_VERSION_CONFLICT")
+    if db.execute(
+        text("SELECT EXISTS(SELECT 1 FROM submissions WHERE assignment_id = :id)"),
+        {"id": assignment_id},
+    ).scalar_one():
+        raise HTTPException(409, "ASSIGNMENT_HAS_SUBMISSIONS")
+    classes = set(
+        db.execute(
+            text("SELECT id FROM classes WHERE id = ANY(:ids)"), {"ids": payload.class_ids}
+        ).scalars()
+    )
+    if classes != set(payload.class_ids):
+        raise HTTPException(422, "CLASS_NOT_FOUND")
+    params = payload.model_dump(exclude={"class_ids", "rubric_items", "expected_updated_at"})
+    db.execute(
+        text("""
+        UPDATE assignments SET title=:title, type=:type, submit_deadline=:submit_deadline,
+          review_deadline=:review_deadline, teacher_weight=:teacher_weight,
+          designated_review_weight=:designated_review_weight, updated_at=now() WHERE id=:id
+    """),
+        {"id": assignment_id, **params},
+    )
+    old_classes = set(
+        db.execute(
+            text("SELECT class_id FROM assignment_classes WHERE assignment_id=:id"),
+            {"id": assignment_id},
+        ).scalars()
+    )
+    if old_classes != classes:
+        db.execute(text("DELETE FROM review_panels WHERE assignment_id=:id"), {"id": assignment_id})
+        db.execute(
+            text("DELETE FROM assignment_classes WHERE assignment_id=:id"), {"id": assignment_id}
+        )
+        for class_id in classes:
+            db.execute(
+                text("INSERT INTO assignment_classes VALUES (:a,:c)"),
+                {"a": assignment_id, "c": class_id},
+            )
+    db.execute(text("DELETE FROM rubrics WHERE assignment_id=:id"), {"id": assignment_id})
+    rubric_id = db.execute(
+        text("""
+        INSERT INTO rubrics(assignment_id,name,total_score) VALUES (:a,'课程评分量表',:total) RETURNING id
+    """),
+        {"a": assignment_id, "total": sum(r.max_score for r in payload.rubric_items)},
+    ).scalar_one()
+    for item in payload.rubric_items:
+        db.execute(
+            text("""
+            INSERT INTO rubric_items(rubric_id,name,max_score,sort_order,description)
+            VALUES (:rubric_id,:name,:max_score,:sort_order,:description)
+        """),
+            {"rubric_id": rubric_id, **item.model_dump()},
+        )
+    audit(
+        db,
+        teacher.id,
+        "EDIT_DRAFT",
+        "assignment",
+        assignment_id,
+        dict(before),
+        payload.model_dump(),
+    )
+    db.commit()
+    return ApiResponse(
+        data={
+            "assignment_id": assignment_id,
+            "status": "DRAFT",
+            "panels_reset": old_classes != classes,
+        }
+    )
+
+
+@router.delete("/assignments/{assignment_id}", response_model=ApiResponse)
+def delete_draft(
+    assignment_id: int,
+    teacher: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    before = lock_assignment(db, assignment_id)
+    if before["status"] != "DRAFT":
+        raise HTTPException(409, "ASSIGNMENT_NOT_DRAFT")
+    if db.execute(
+        text("""SELECT EXISTS(SELECT 1 FROM submissions WHERE assignment_id=:id)
+                         OR EXISTS(SELECT 1 FROM algorithm_runs WHERE assignment_id=:id)"""),
+        {"id": assignment_id},
+    ).scalar_one():
+        raise HTTPException(409, "ASSIGNMENT_HAS_SUBMISSIONS")
+    audit(db, teacher.id, "DELETE_DRAFT", "assignment", assignment_id, before=dict(before))
+    db.execute(text("DELETE FROM assignments WHERE id=:id"), {"id": assignment_id})
+    db.commit()
+    return ApiResponse(data={"deleted": True})
+
+
+@router.put("/assignments/{assignment_id}/review-deadline", response_model=ApiResponse)
+def extend_review_deadline(
+    assignment_id: int,
+    payload: ReviewDeadlineInput,
+    teacher: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    assignment = lock_assignment(db, assignment_id)
+    if assignment["status"] not in {"PUBLISHED", "SUBMITTING", "REVIEWER_GRADING"}:
+        raise HTTPException(400, "INVALID_STATE")
+    if payload.review_deadline <= datetime.now(UTC) or (
+        assignment["review_deadline"] and payload.review_deadline <= assignment["review_deadline"]
+    ):
+        raise HTTPException(422, "DEADLINE_MUST_BE_EXTENDED")
+    db.execute(
+        text("UPDATE assignments SET review_deadline=:deadline, updated_at=now() WHERE id=:id"),
+        {"id": assignment_id, "deadline": payload.review_deadline},
+    )
+    audit(
+        db,
+        teacher.id,
+        "EXTEND_REVIEW_DEADLINE",
+        "assignment",
+        assignment_id,
+        {"review_deadline": assignment["review_deadline"]},
+        payload.model_dump(),
+    )
+    db.commit()
+    return ApiResponse(data={"review_deadline": payload.review_deadline})
+
+
+@router.get("/assignments/{assignment_id}/review-progress", response_model=ApiResponse)
+def review_progress(
+    assignment_id: int, _: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)
+):
+    if (
+        db.execute(
+            text("SELECT id FROM assignments WHERE id=:id"), {"id": assignment_id}
+        ).scalar_one_or_none()
+        is None
+    ):
+        raise _not_found()
+    rows = (
+        db.execute(
+            text("""
+        SELECT p.id AS panel_id, c.name AS target_class_name, u.name AS reviewer_name,
+               u.student_no, pr.reviewer_id, count(rt.id) AS task_count,
+               count(rt.id) FILTER (WHERE rt.status='SUBMITTED') AS completed_count,
+               COALESCE(jsonb_agg(jsonb_build_object('task_id',rt.id,'submission_id',rt.submission_id,
+                 'anonymous_token',rt.anonymous_token,'status',rt.status))
+                 FILTER (WHERE rt.id IS NOT NULL AND rt.status <> 'SUBMITTED'), '[]') AS missing_tasks
+        FROM review_panels p JOIN classes c ON c.id=p.target_class_id
+        JOIN panel_reviewers pr ON pr.panel_id=p.id JOIN users u ON u.id=pr.reviewer_id
+        LEFT JOIN review_tasks rt ON rt.panel_id=p.id AND rt.reviewer_id=pr.reviewer_id
+        WHERE p.assignment_id=:id GROUP BY p.id,c.name,u.name,u.student_no,pr.reviewer_id
+        ORDER BY p.id,u.student_no
+    """),
+            {"id": assignment_id},
+        )
+        .mappings()
+        .all()
+    )
+    return ApiResponse(data=[dict(row) for row in rows])

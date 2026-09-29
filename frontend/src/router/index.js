@@ -7,26 +7,66 @@ import TeacherDashboardView from '../views/teacher/TeacherDashboardView.vue'
 import TeacherAssignmentsView from '../views/teacher/TeacherAssignmentsView.vue'
 import TeacherAssignmentView from '../views/teacher/TeacherAssignmentView.vue'
 import TeacherGradingView from '../views/teacher/TeacherGradingView.vue'
+import TeacherClassesView from '../views/teacher/TeacherClassesView.vue'
+import TeacherReviewView from '../views/teacher/TeacherReviewView.vue'
+import TeacherStatisticsView from '../views/teacher/TeacherStatisticsView.vue'
 import TeacherAiSettingsView from '../views/teacher/TeacherAiSettingsView.vue'
 import { currentUser } from '../api/auth'
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior: () => ({ top: 0 }),
   routes: [
     { path: '/', component: HomeView },
     { path: '/login', component: LoginView, meta: { public: true } },
     { path: '/student', component: StudentWorkspaceView },
     { path: '/reviewer/tasks', component: ReviewerTasksView },
-    { path: '/teacher', component: TeacherDashboardView, meta: { teacher: true } },
-    { path: '/teacher/assignments', component: TeacherAssignmentsView, meta: { teacher: true } },
-    { path: '/teacher/assignments/:id', component: TeacherAssignmentView, meta: { teacher: true } },
-    { path: '/teacher/assignments/:id/grading', component: TeacherGradingView, meta: { teacher: true } },
-    { path: '/teacher/ai-video', component: TeacherAiSettingsView, meta: { teacher: true } }
-  ]
+    {
+      path: '/teacher',
+      component: TeacherDashboardView,
+      meta: { teacher: true },
+    },
+    {
+      path: '/teacher/classes',
+      component: TeacherClassesView,
+      meta: { teacher: true },
+    },
+    {
+      path: '/teacher/assignments',
+      component: TeacherAssignmentsView,
+      meta: { teacher: true },
+    },
+    {
+      path: '/teacher/assignments/:id',
+      component: TeacherAssignmentView,
+      meta: { teacher: true },
+    },
+    {
+      path: '/teacher/assignments/:id/grading',
+      component: TeacherGradingView,
+      meta: { teacher: true },
+    },
+    {
+      path: '/teacher/assignments/:id/reviews',
+      component: TeacherReviewView,
+      meta: { teacher: true },
+    },
+    {
+      path: '/teacher/assignments/:id/statistics',
+      component: TeacherStatisticsView,
+      meta: { teacher: true },
+    },
+    {
+      path: '/teacher/ai-video',
+      component: TeacherAiSettingsView,
+      meta: { teacher: true },
+    },
+  ],
 })
 
 router.beforeEach((to) => {
-  if (to.meta.teacher && currentUser()?.role !== 'TEACHER') return { path: '/login', query: { redirect: to.fullPath } }
+  if (to.meta.teacher && currentUser()?.role !== 'TEACHER')
+    return { path: '/login', query: { redirect: to.fullPath } }
 })
 
 export default router

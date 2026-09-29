@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from sqlalchemy import text
 
+from app.core.config import settings
 from app.core.security import hash_password
 from app.db.session import SessionLocal
 
@@ -18,6 +19,8 @@ def scalar_id(db, statement: str, **params: object) -> int:
 
 
 def main() -> None:
+    if settings.app_env == "production":
+        raise RuntimeError("Demo seed is disabled in production")
     db = SessionLocal()
     try:
         demo_password_hash = hash_password("AlgoPeer2026!")
@@ -25,8 +28,7 @@ def main() -> None:
             db,
             """INSERT INTO users(student_no, name, password_hash, system_role)
                VALUES ('T001', '演示教师', :password_hash, 'TEACHER')
-               ON CONFLICT (student_no) DO UPDATE SET name = EXCLUDED.name,
-                 password_hash = EXCLUDED.password_hash RETURNING id""",
+               ON CONFLICT (student_no) DO UPDATE SET student_no = EXCLUDED.student_no RETURNING id""",
             password_hash=demo_password_hash,
         )
         class_ids: dict[int, int] = {}
@@ -46,8 +48,7 @@ def main() -> None:
                     db,
                     """INSERT INTO users(student_no, name, password_hash, system_role)
                        VALUES (:student_no, :name, :password_hash, 'STUDENT')
-                       ON CONFLICT (student_no) DO UPDATE SET name = EXCLUDED.name,
-                         password_hash = EXCLUDED.password_hash RETURNING id""",
+                       ON CONFLICT (student_no) DO UPDATE SET student_no = EXCLUDED.student_no RETURNING id""",
                     student_no=student_no,
                     name=f"{class_number}班学生{index:02d}",
                     password_hash=demo_password_hash,
@@ -75,7 +76,7 @@ def main() -> None:
         assignment_id = scalar_id(
             db,
             """INSERT INTO assignments(title, type, status, teacher_weight, designated_review_weight, created_by)
-               VALUES ('算法微课期末作业（演示）', 'FINAL_PROJECT', 'REVIEWER_GRADING', 0.6, 0.4, :teacher_id)
+               VALUES ('算法微课期末作业（演示）', 'FINAL_PROJECT', 'DRAFT', 0.6, 0.4, :teacher_id)
                RETURNING id""",
             teacher_id=teacher_id,
         )
@@ -146,6 +147,10 @@ def main() -> None:
                             "token": f"DEMO-{target_class}-{sequence:02d}",
                         },
                     )
+        db.execute(
+            text("UPDATE assignments SET status='REVIEWER_GRADING' WHERE id=:id"),
+            {"id": assignment_id},
+        )
         db.commit()
         print(
             f"Demo seed created: assignment_id={assignment_id}; two active panels; 80 review tasks."

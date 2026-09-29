@@ -16,6 +16,12 @@ from app.schemas.teacher import (
     TeacherGradeInput,
 )
 from app.services.teacher_grade_service import calculate_final_score, calculate_teacher_total
+from app.services.teacher_workflow import (
+    audit,
+    lock_assignment,
+    lock_submission,
+    publication_readiness,
+)
 
 router = APIRouter()
 
@@ -23,18 +29,7 @@ router = APIRouter()
 def _load_and_validate_scores(
     db: Session, submission_id: int, payload: TeacherGradeInput
 ) -> tuple[dict, Decimal]:
-    submission = (
-        db.execute(
-            text("""
-        SELECT s.id, s.assignment_id FROM submissions s WHERE s.id = :id
-    """),
-            {"id": submission_id},
-        )
-        .mappings()
-        .one_or_none()
-    )
-    if submission is None:
-        raise HTTPException(status_code=404, detail="SUBMISSION_NOT_FOUND")
+    submission = lock_submission(db, submission_id)
     rubric_rows = (
         db.execute(
             text("""
@@ -48,7 +43,7 @@ def _load_and_validate_scores(
     )
     limits = {row["id"]: Decimal(row["max_score"]) for row in rubric_rows}
     submitted = {item.rubric_item_id: item.score for item in payload.rubric_scores}
-    if len(submitted) != len(payload.rubric_scores) or set(submitted) != set(limits):
+    if not limits or len(submitted) != len(payload.rubric_scores) or set(submitted) != set(limits):
         raise HTTPException(status_code=422, detail="ALL_RUBRIC_ITEMS_REQUIRED_ONCE")
     if any(score > limits[item_id] for item_id, score in submitted.items()):
         raise HTTPException(status_code=422, detail="RUBRIC_SCORE_OUT_OF_RANGE")
@@ -87,7 +82,7 @@ def grading_workspace(
         db.execute(
             text("""
         SELECT s.id, s.anonymous_token, s.status, s.author_id, u.student_no, u.name AS author_name,
-               c.name AS class_name,
+               c.name AS class_name, mc.status AS material_status, mc.missing_items,
                tg.id AS teacher_grade_id, tg.total_score AS teacher_score, tg.version AS teacher_grade_version,
                tg.locked_at, tg.feedback, tg.rubric_scores_json,
                agg.id AS aggregate_id, agg.total_score AS aggregate_score,
@@ -95,16 +90,22 @@ def grading_workspace(
                fg.final_score, fg.published_at
         FROM submissions s
         JOIN users u ON u.id = s.author_id JOIN classes c ON c.id = s.class_id
+        LEFT JOIN material_checks mc ON mc.submission_id = s.id
         LEFT JOIN LATERAL (
           SELECT * FROM teacher_grades WHERE submission_id = s.id ORDER BY version DESC LIMIT 1
         ) tg ON true
         LEFT JOIN LATERAL (
-          SELECT * FROM designated_review_aggregates WHERE submission_id = s.id ORDER BY created_at DESC LIMIT 1
+          SELECT ag.* FROM designated_review_aggregates ag
+          JOIN review_panels p ON p.id=ag.panel_id JOIN algorithm_runs run ON run.id=ag.algorithm_run_id
+          WHERE ag.submission_id=s.id AND p.assignment_id=s.assignment_id
+            AND p.target_class_id=s.class_id AND run.assignment_id=s.assignment_id
+            AND run.panel_id=p.id AND run.status='COMPLETED'
+          ORDER BY ag.created_at DESC,ag.id DESC LIMIT 1
         ) agg ON true
         LEFT JOIN anomaly_records ar ON ar.submission_id = s.id
         LEFT JOIN final_grades fg ON fg.submission_id = s.id
         WHERE s.assignment_id = :id
-        GROUP BY s.id, u.student_no, u.name, c.name, tg.id, tg.total_score, tg.version,
+        GROUP BY s.id, u.student_no, u.name, c.name, mc.status, mc.missing_items, tg.id, tg.total_score, tg.version,
                  tg.locked_at, tg.feedback, tg.rubric_scores_json, agg.id, agg.total_score, fg.final_score, fg.published_at
         ORDER BY c.name, u.student_no
     """),
@@ -154,6 +155,14 @@ def create_teacher_grade(
             "feedback": payload.comment,
         },
     ).scalar_one()
+    audit(
+        db,
+        teacher.id,
+        "CREATE_TEACHER_GRADE",
+        "teacher_grade",
+        grade_id,
+        after={"submission_id": submission_id, "version": 1},
+    )
     db.commit()
     return ApiResponse(
         data={"teacher_grade_id": grade_id, "version": 1, "total_score": total, "locked": False}
@@ -164,6 +173,12 @@ def create_teacher_grade(
 def lock_teacher_grade(
     grade_id: int, teacher: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)
 ) -> ApiResponse:
+    submission_id = db.execute(
+        text("SELECT submission_id FROM teacher_grades WHERE id = :id"), {"id": grade_id}
+    ).scalar_one_or_none()
+    if submission_id is None:
+        raise HTTPException(404, "GRADE_NOT_FOUND")
+    lock_submission(db, submission_id)
     grade = (
         db.execute(
             text(
@@ -176,8 +191,6 @@ def lock_teacher_grade(
     )
     if grade is None:
         raise HTTPException(status_code=404, detail="GRADE_NOT_FOUND")
-    if grade["locked_at"] is not None:
-        raise HTTPException(status_code=423, detail="GRADE_LOCKED")
     latest = db.execute(
         text(
             "SELECT id FROM teacher_grades WHERE submission_id = :id ORDER BY version DESC LIMIT 1"
@@ -186,6 +199,8 @@ def lock_teacher_grade(
     ).scalar_one()
     if latest != grade_id:
         raise HTTPException(status_code=409, detail="ONLY_LATEST_GRADE_CAN_BE_LOCKED")
+    if grade["locked_at"] is not None:
+        return ApiResponse(data={"teacher_grade_id": grade_id, "locked": True})
     db.execute(text("UPDATE teacher_grades SET locked_at = now() WHERE id = :id"), {"id": grade_id})
     db.execute(
         text("""
@@ -224,6 +239,8 @@ def correct_teacher_grade(
     )
     if previous is None:
         raise HTTPException(status_code=409, detail="CREATE_INITIAL_GRADE_FIRST")
+    if previous["version"] != payload.expected_version:
+        raise HTTPException(409, "GRADE_VERSION_CONFLICT")
     if previous["locked_at"] is None:
         raise HTTPException(status_code=409, detail="LOCK_CURRENT_GRADE_BEFORE_CORRECTION")
     version = previous["version"] + 1
@@ -274,6 +291,10 @@ def correct_teacher_grade(
 def list_anomalies(
     assignment_id: int, _: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)
 ) -> ApiResponse:
+    if not db.execute(
+        text("SELECT id FROM assignments WHERE id = :id"), {"id": assignment_id}
+    ).scalar_one_or_none():
+        raise HTTPException(404, "ASSIGNMENT_NOT_FOUND")
     rows = (
         db.execute(
             text("""
@@ -297,6 +318,16 @@ def resolve_anomaly(
     teacher: CurrentUser = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> ApiResponse:
+    assignment_id = db.execute(
+        text("""
+        SELECT s.assignment_id FROM anomaly_records ar JOIN submissions s ON s.id = ar.submission_id
+        WHERE ar.id = :id
+    """),
+        {"id": anomaly_id},
+    ).scalar_one_or_none()
+    if assignment_id is None:
+        raise HTTPException(404, "ANOMALY_NOT_FOUND")
+    lock_assignment(db, assignment_id)
     updated = db.execute(
         text("""
         UPDATE anomaly_records SET status = :status, resolution_note = :note,
@@ -312,8 +343,50 @@ def resolve_anomaly(
     ).scalar_one_or_none()
     if updated is None:
         raise HTTPException(status_code=409, detail="ANOMALY_NOT_OPEN_OR_NOT_FOUND")
+    audit(
+        db,
+        teacher.id,
+        "RESOLVE_ANOMALY",
+        "anomaly",
+        anomaly_id,
+        before={"status": "OPEN"},
+        after=payload.model_dump(),
+    )
     db.commit()
     return ApiResponse(data={"anomaly_id": anomaly_id, "status": payload.status})
+
+
+@router.get("/assignments/{assignment_id}/publication-readiness", response_model=ApiResponse)
+def get_publication_readiness(
+    assignment_id: int, _: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)
+) -> ApiResponse:
+    readiness, _rows = publication_readiness(db, assignment_id)
+    return ApiResponse(data=readiness)
+
+
+@router.get("/submissions/{submission_id}/grade-history", response_model=ApiResponse)
+def grade_history(
+    submission_id: int, _: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)
+) -> ApiResponse:
+    if (
+        db.execute(
+            text("SELECT id FROM submissions WHERE id = :id"), {"id": submission_id}
+        ).scalar_one_or_none()
+        is None
+    ):
+        raise HTTPException(404, "SUBMISSION_NOT_FOUND")
+    rows = (
+        db.execute(
+            text("""
+        SELECT tg.*, u.name AS entered_by_name FROM teacher_grades tg
+        JOIN users u ON u.id = tg.entered_by WHERE submission_id = :id ORDER BY version DESC
+    """),
+            {"id": submission_id},
+        )
+        .mappings()
+        .all()
+    )
+    return ApiResponse(data=[dict(row) for row in rows])
 
 
 @router.post("/assignments/{assignment_id}/publish-results", response_model=ApiResponse)
@@ -322,100 +395,71 @@ def publish_results(
     teacher: CurrentUser = Depends(require_teacher),
     db: Session = Depends(get_db),
 ) -> ApiResponse:
-    assignment = (
-        db.execute(
+    assignment = lock_assignment(db, assignment_id, editable=False)
+    if assignment["status"] == "PUBLISHED_RESULT":
+        count = db.execute(
             text("""
-        SELECT id, status, teacher_weight, designated_review_weight FROM assignments
-        WHERE id = :id FOR UPDATE
-    """),
-            {"id": assignment_id},
-        )
-        .mappings()
-        .one_or_none()
-    )
-    if assignment is None:
-        raise HTTPException(status_code=404, detail="ASSIGNMENT_NOT_FOUND")
-    if assignment["status"] not in {"TEACHER_GRADING", "AGGREGATING"}:
-        raise HTTPException(status_code=400, detail="INVALID_STATE")
-    open_anomalies = db.execute(
-        text("""
-        SELECT count(*) FROM anomaly_records ar JOIN submissions s ON s.id = ar.submission_id
-        WHERE s.assignment_id = :id AND ar.status = 'OPEN'
-    """),
-        {"id": assignment_id},
-    ).scalar_one()
-    if open_anomalies:
-        raise HTTPException(status_code=424, detail="OPEN_ANOMALIES_REQUIRE_REVIEW")
-    submissions = (
-        db.execute(
-            text(
-                "SELECT id FROM submissions WHERE assignment_id = :id AND status = 'VALID' ORDER BY id"
-            ),
-            {"id": assignment_id},
-        )
-        .scalars()
-        .all()
-    )
-    published = 0
-    for submission_id in submissions:
-        grade = (
-            db.execute(
-                text("""
-            SELECT id, total_score FROM teacher_grades WHERE submission_id = :id AND locked_at IS NOT NULL
-            ORDER BY version DESC LIMIT 1
+            SELECT count(*) FROM final_grades f JOIN submissions s ON s.id = f.submission_id
+            WHERE s.assignment_id = :id
         """),
-                {"id": submission_id},
-            )
-            .mappings()
-            .one_or_none()
+            {"id": assignment_id},
+        ).scalar_one()
+        return ApiResponse(
+            data={
+                "assignment_id": assignment_id,
+                "status": "PUBLISHED_RESULT",
+                "published_count": count,
+            }
         )
-        aggregate = (
-            db.execute(
-                text("""
-            SELECT id, total_score FROM designated_review_aggregates WHERE submission_id = :id
-            ORDER BY created_at DESC LIMIT 1
-        """),
-                {"id": submission_id},
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if grade is None or aggregate is None:
-            raise HTTPException(
-                status_code=424, detail={"code": "GRADE_NOT_READY", "submission_id": submission_id}
-            )
+    readiness, rows = publication_readiness(db, assignment_id)
+    if not readiness["ready"]:
+        raise HTTPException(424, {"code": "PUBLICATION_BLOCKED", **readiness})
+    for row in rows:
         final_score = calculate_final_score(
-            Decimal(grade["total_score"]),
-            Decimal(aggregate["total_score"]),
-            Decimal(assignment["teacher_weight"]),
-            Decimal(assignment["designated_review_weight"]),
+            row["teacher_score"],
+            row["aggregate_score"],
+            assignment["teacher_weight"],
+            assignment["designated_review_weight"],
         )
         db.execute(
             text("""
-            INSERT INTO final_grades(submission_id, teacher_grade_id, aggregate_id, final_score, published_by)
-            VALUES (:submission_id, :teacher_grade_id, :aggregate_id, :final_score, :published_by)
-            ON CONFLICT (submission_id) DO NOTHING
+            INSERT INTO final_grades(submission_id, teacher_grade_id, aggregate_id,
+                                     final_score, published_by, teacher_weight, designated_review_weight)
+            VALUES (:submission, :grade, :aggregate, :score, :teacher, :tw, :rw)
         """),
             {
-                "submission_id": submission_id,
-                "teacher_grade_id": grade["id"],
-                "aggregate_id": aggregate["id"],
-                "final_score": final_score,
-                "published_by": teacher.id,
+                "submission": row["id"],
+                "grade": row["teacher_grade_id"],
+                "aggregate": row["aggregate_id"],
+                "score": final_score,
+                "teacher": teacher.id,
+                "tw": assignment["teacher_weight"],
+                "rw": assignment["designated_review_weight"],
             },
         )
-        published += 1
     db.execute(
         text(
             "UPDATE assignments SET status = 'PUBLISHED_RESULT', updated_at = now() WHERE id = :id"
         ),
         {"id": assignment_id},
     )
+    audit(
+        db,
+        teacher.id,
+        "PUBLISH_RESULTS",
+        "assignment",
+        assignment_id,
+        after={
+            "count": len(rows),
+            "teacher_weight": assignment["teacher_weight"],
+            "designated_review_weight": assignment["designated_review_weight"],
+        },
+    )
     db.commit()
     return ApiResponse(
         data={
             "assignment_id": assignment_id,
             "status": "PUBLISHED_RESULT",
-            "published_count": published,
+            "published_count": len(rows),
         }
     )
