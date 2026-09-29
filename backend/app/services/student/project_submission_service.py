@@ -77,10 +77,10 @@ def get_upload_context(*, db: Session, assignment_id: int, student_id: int) -> U
 
 def validate_archive_filename(*, file_name: str | None, context: UploadContext) -> str:
     if file_name is None or not re.fullmatch(r"[^_]+_[^_]+_\d{2}\.zip", file_name):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="VALIDATION_ERROR")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="VALIDATION_ERROR")
     expected_name = f"{context.student_no}_{context.student_name}_{context.topic_code}.zip"
     if file_name != expected_name:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="VALIDATION_ERROR")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="VALIDATION_ERROR")
     return file_name
 
 
@@ -97,7 +97,7 @@ async def store_archive(
                 size_bytes += len(chunk)
                 if size_bytes > max_bytes:
                     raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail="VALIDATION_ERROR",
                     )
                 digest.update(chunk)

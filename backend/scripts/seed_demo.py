@@ -52,12 +52,69 @@ def main() -> None:
                 )
                 students[class_number].append(user_id)
 
+        programming_assignment_id = db.execute(
+            text("SELECT id FROM assignments WHERE title = '整数求和（编程题演示）' ORDER BY id LIMIT 1")
+        ).scalar_one_or_none()
+        if programming_assignment_id is None:
+            programming_assignment_id = scalar_id(
+                db,
+                """INSERT INTO assignments(title, type, status, teacher_weight, designated_review_weight, created_by)
+                   VALUES ('整数求和（编程题演示）', 'PROGRAMMING', 'PUBLISHED', 0.6, 0.4, :teacher_id)
+                   RETURNING id""",
+                teacher_id=teacher_id,
+            )
+            for class_id in class_ids.values():
+                db.execute(
+                    text("INSERT INTO assignment_classes(assignment_id, class_id) VALUES (:a, :c)"),
+                    {"a": programming_assignment_id, "c": class_id},
+                )
+            db.execute(
+                text(
+                    """INSERT INTO programming_problems(
+                         assignment_id, statement, input_description, output_description,
+                         time_limit_ms, memory_limit_mb
+                       ) VALUES (
+                         :assignment_id, :statement, :input_description, :output_description, 2000, 256
+                       )"""
+                ),
+                {
+                    "assignment_id": programming_assignment_id,
+                    "statement": "读入两个整数 a 和 b，输出它们的和 a + b。",
+                    "input_description": "一行两个以空格分隔的整数 a、b。",
+                    "output_description": "输出一个整数，表示 a + b。",
+                },
+            )
+            for order, input_data, expected_output, is_public in (
+                (1, "1 2\n", "3\n", True),
+                (2, "-5 8\n", "3\n", True),
+                (3, "0 0\n", "0\n", False),
+                (4, "999999 -1\n", "999998\n", False),
+                (5, "-123456 -654321\n", "-777777\n", False),
+            ):
+                db.execute(
+                    text(
+                        """INSERT INTO programming_test_cases(
+                             problem_assignment_id, sort_order, input_data, expected_output, is_public
+                           ) VALUES (:assignment_id, :sort_order, :input_data, :expected_output, :is_public)"""
+                    ),
+                    {
+                        "assignment_id": programming_assignment_id,
+                        "sort_order": order,
+                        "input_data": input_data,
+                        "expected_output": expected_output,
+                        "is_public": is_public,
+                    },
+                )
+
         existing_assignment = db.execute(
             text("SELECT id FROM assignments WHERE title = '算法微课期末作业（演示）' ORDER BY id LIMIT 1")
         ).scalar_one_or_none()
         if existing_assignment is not None:
             db.commit()
-            print(f"Demo seed already exists: assignment_id={existing_assignment}. No duplicate data inserted.")
+            print(
+                "Demo final-project seed already exists; programming problem is available: "
+                f"assignment_id={programming_assignment_id}."
+            )
             return
 
         assignment_id = scalar_id(

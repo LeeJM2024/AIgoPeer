@@ -5,6 +5,6 @@ body { min-height: 100vh; margin: 0; background: linear-gradient(145deg, #062c22
 .app-header a { color: #dcefe3; text-decoration: none; margin-right: 18px; }
 .app-header a.router-link-active { color: white; }
 .app-header .brand { font-size: 20px; font-weight: 700; }
-.page-shell { max-width: 1024px; margin: 36px auto; padding: 0 20px 48px; }
+.page-shell { max-width: 1200px; margin: 36px auto; padding: 0 20px 48px; }
 .card { background: white; border-radius: 12px; box-shadow: 0 12px 32px #011a1238; padding: 28px; }
 .error { color: #b42318; }

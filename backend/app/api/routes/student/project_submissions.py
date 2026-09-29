@@ -52,7 +52,7 @@ async def create_project_submission(
     try:
         parsed_manifest = ProjectManifest.model_validate(json.loads(manifest))
     except (json.JSONDecodeError, ValidationError) as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="VALIDATION_ERROR") from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="VALIDATION_ERROR") from exc
 
     context = get_upload_context(db=db, assignment_id=assignment_id, student_id=current_user.id)
     original_file_name = validate_archive_filename(file_name=zip_file.filename, context=context)

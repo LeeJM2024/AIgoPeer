@@ -13,9 +13,8 @@ from app.schemas.student import StudentAssignmentSummary, StudentSubmissionSumma
 def list_visible_assignments(*, db: Session, student_id: int) -> list[StudentAssignmentSummary]:
     """List non-draft assignments in the student's enrolled classes.
 
-The lateral subquery selects the latest project submission for this student only.
-Programming submissions are deliberately absent until the code-submission module
-and its tables are introduced in a later iteration.
+The lateral subqueries select only this student's current submission.  They never
+join review, grade, aggregation, or another student's data.
     """
     result = db.execute(
         text(
@@ -27,8 +26,8 @@ and its tables are introduced in a later iteration.
                 a.status,
                 a.submit_deadline,
                 a.review_deadline,
-                latest_submission.id AS submission_id,
-                latest_submission.status AS submission_status,
+                COALESCE(latest_project.id, latest_code.id) AS submission_id,
+                COALESCE(latest_project.status, latest_code.status) AS submission_status,
                 material_checks.status AS material_check_status
             FROM assignments AS a
             LEFT JOIN LATERAL (
@@ -40,8 +39,18 @@ and its tables are introduced in a later iteration.
                   AND submission.is_current = TRUE
                 ORDER BY submission.submitted_at DESC NULLS LAST, submission.id DESC
                 LIMIT 1
-            ) AS latest_submission ON TRUE
-            LEFT JOIN material_checks ON material_checks.submission_id = latest_submission.id
+            ) AS latest_project ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT code_submission.id, code_submission.status
+                FROM code_submissions AS code_submission
+                WHERE code_submission.assignment_id = a.id
+                  AND code_submission.author_id = :student_id
+                  AND a.type = 'PROGRAMMING'
+                  AND code_submission.is_current = TRUE
+                ORDER BY code_submission.queued_at DESC, code_submission.id DESC
+                LIMIT 1
+            ) AS latest_code ON TRUE
+            LEFT JOIN material_checks ON material_checks.submission_id = latest_project.id
             WHERE a.status <> 'DRAFT'
               AND EXISTS (
                   SELECT 1
