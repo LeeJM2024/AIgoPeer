@@ -17,6 +17,9 @@ dependencies = [
 requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+include = ["app*"]
+
 [project.optional-dependencies]
 dev = ["httpx>=0.28,<1", "pytest>=8.3,<9", "ruff>=0.8,<1"]
 
@@ -27,3 +30,6 @@ testpaths = ["../tests/backend"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+ignore = ["B008"] # FastAPI dependency injection intentionally uses Depends in defaults.

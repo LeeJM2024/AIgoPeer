@@ -1,12 +1,13 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(root / "backend"))
 sys.path.insert(0, str(root))
 
-from algorithm.algorithms.aggregation import aggregate_panel_scores
 from app.schemas.review import AggregateRequest, ReviewerObservation, ScoreItem
+
+from algorithm.algorithms.aggregation import aggregate_panel_scores
 
 
 def test_aggregation_is_panel_local_and_returns_explainable_result() -> None:

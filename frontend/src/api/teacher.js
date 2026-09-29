@@ -1,0 +1,17 @@
+import { apiFetch } from './client'
+
+export const getDashboard = () => apiFetch('/api/teacher/dashboard')
+export const getClasses = () => apiFetch('/api/teacher/classes')
+export const getClassStudents = (id) => apiFetch(`/api/teacher/classes/${id}/students`)
+export const getAssignments = () => apiFetch('/api/teacher/assignments')
+export const getAssignment = (id) => apiFetch(`/api/teacher/assignments/${id}`)
+export const createAssignment = (payload) => apiFetch('/api/teacher/assignments', { method: 'POST', body: JSON.stringify(payload) })
+export const savePanels = (id, panels) => apiFetch(`/api/teacher/assignments/${id}/review-panels`, { method: 'PUT', body: JSON.stringify({ panels }) })
+export const publishAssignment = (id) => apiFetch(`/api/teacher/assignments/${id}/publish`, { method: 'POST' })
+export const initializeReviewTasks = (id) => apiFetch(`/api/teacher/assignments/${id}/initialize-review-tasks`, { method: 'POST' })
+export const getGradingWorkspace = (id) => apiFetch(`/api/teacher/assignments/${id}/grading`)
+export const createTeacherGrade = (submissionId, payload) => apiFetch(`/api/teacher/submissions/${submissionId}/grades`, { method: 'POST', body: JSON.stringify(payload) })
+export const correctTeacherGrade = (submissionId, payload) => apiFetch(`/api/teacher/submissions/${submissionId}/grade-corrections`, { method: 'POST', body: JSON.stringify(payload) })
+export const lockTeacherGrade = (gradeId) => apiFetch(`/api/teacher/grades/${gradeId}/lock`, { method: 'POST' })
+export const publishResults = (id) => apiFetch(`/api/teacher/assignments/${id}/publish-results`, { method: 'POST' })
+export const getAiVideoStatus = () => apiFetch('/api/teacher/ai-video/status')

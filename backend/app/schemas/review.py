@@ -10,7 +10,7 @@ class PanelInput(BaseModel):
     reviewer_ids: list[int] = Field(min_length=5, max_length=5)
 
     @model_validator(mode="after")
-    def validate_cross_class_panel(self) -> "PanelInput":
+    def validate_cross_class_panel(self) -> PanelInput:
         if self.target_class_id == self.reviewer_class_id:
             raise ValueError("target_class_id and reviewer_class_id must differ")
         if len(set(self.reviewer_ids)) != 5:
@@ -43,7 +43,7 @@ class ScoreItem(BaseModel):
     max_score: float = Field(gt=0)
 
     @model_validator(mode="after")
-    def validate_score_range(self) -> "ScoreItem":
+    def validate_score_range(self) -> ScoreItem:
         if self.score > self.max_score:
             raise ValueError("score cannot exceed max_score")
         return self

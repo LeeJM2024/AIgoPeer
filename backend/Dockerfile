@@ -2,6 +2,7 @@ FROM python:3.13-slim
 
 WORKDIR /app
 COPY backend/pyproject.toml ./
+COPY backend/app/ ./app/
 RUN pip install --no-cache-dir .
 COPY backend/ ./
 COPY algorithm/ /app/algorithm/
