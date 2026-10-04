@@ -36,6 +36,11 @@ export const correctTeacherGrade = (submissionId, payload) =>
   })
 export const lockTeacherGrade = (gradeId) =>
   apiFetch(`/api/teacher/grades/${gradeId}/lock`, { method: 'POST' })
+export const createTeacherFinalReview = (submissionId, payload) =>
+  apiFetch(`/api/teacher/submissions/${submissionId}/final-review`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 export const publishResults = (id) =>
   apiFetch(`/api/teacher/assignments/${id}/publish-results`, { method: 'POST' })
 export const getAiVideoStatus = () => apiFetch('/api/teacher/ai-video/status')

@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.schemas.common import ApiResponse
 from app.schemas.teacher import (
     AnomalyResolutionInput,
+    TeacherFinalReviewInput,
     TeacherGradeCorrectionInput,
     TeacherGradeInput,
 )
@@ -86,6 +87,7 @@ def grading_workspace(
                tg.id AS teacher_grade_id, tg.total_score AS teacher_score, tg.version AS teacher_grade_version,
                tg.locked_at, tg.feedback, tg.rubric_scores_json,
                agg.id AS aggregate_id, agg.total_score AS aggregate_score,
+               s.final_review_status, fr.id AS final_review_id, fr.final_score AS final_review_score,
                count(DISTINCT ar.id) FILTER (WHERE ar.status = 'OPEN') AS open_anomaly_count,
                fg.final_score, fg.published_at
         FROM submissions s
@@ -103,10 +105,11 @@ def grading_workspace(
           ORDER BY ag.created_at DESC,ag.id DESC LIMIT 1
         ) agg ON true
         LEFT JOIN anomaly_records ar ON ar.submission_id = s.id
+        LEFT JOIN teacher_final_reviews fr ON fr.submission_id = s.id
         LEFT JOIN final_grades fg ON fg.submission_id = s.id
         WHERE s.assignment_id = :id
         GROUP BY s.id, u.student_no, u.name, c.name, mc.status, mc.missing_items, tg.id, tg.total_score, tg.version,
-                 tg.locked_at, tg.feedback, tg.rubric_scores_json, agg.id, agg.total_score, fg.final_score, fg.published_at
+                 tg.locked_at, tg.feedback, tg.rubric_scores_json, agg.id, agg.total_score, s.final_review_status, fr.id, fr.final_score, fg.final_score, fg.published_at
         ORDER BY c.name, u.student_no
     """),
             {"id": assignment_id},
@@ -327,6 +330,8 @@ def resolve_anomaly(
     ).scalar_one_or_none()
     if assignment_id is None:
         raise HTTPException(404, "ANOMALY_NOT_FOUND")
+    if db.execute(text("SELECT risk_level FROM anomaly_records WHERE id=:id"), {"id": anomaly_id}).scalar_one() == "HIGH":
+        raise HTTPException(409, "HIGH_RISK_REQUIRES_FINAL_REVIEW")
     lock_assignment(db, assignment_id)
     updated = db.execute(
         text("""
@@ -354,6 +359,30 @@ def resolve_anomaly(
     )
     db.commit()
     return ApiResponse(data={"anomaly_id": anomaly_id, "status": payload.status})
+
+
+@router.post("/submissions/{submission_id}/final-review", response_model=ApiResponse, status_code=201)
+def create_teacher_final_review(
+    submission_id: int, payload: TeacherFinalReviewInput,
+    teacher: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)
+) -> ApiResponse:
+    submission = lock_submission(db, submission_id)
+    maximum = db.execute(text("""SELECT COALESCE(sum(ri.max_score),0) FROM rubric_items ri
+        JOIN rubrics r ON r.id=ri.rubric_id WHERE r.assignment_id=:id"""), {"id": submission["assignment_id"]}).scalar_one()
+    if payload.final_score > maximum:
+        raise HTTPException(422, "FINAL_REVIEW_SCORE_OUT_OF_RANGE")
+    run_id = db.execute(text("""SELECT ar.algorithm_run_id FROM anomaly_records ar
+        WHERE ar.submission_id=:id AND ar.risk_level='HIGH' ORDER BY ar.created_at DESC LIMIT 1"""), {"id":submission_id}).scalar_one_or_none()
+    if run_id is None:
+        raise HTTPException(409, "HIGH_RISK_REVIEW_NOT_FOUND")
+    review_id = db.execute(text("""INSERT INTO teacher_final_reviews(submission_id,algorithm_run_id,final_score,reason,entered_by)
+        VALUES(:submission,:run,:score,:reason,:teacher) RETURNING id"""), {"submission":submission_id,"run":run_id,"score":payload.final_score,"reason":payload.reason,"teacher":teacher.id}).scalar_one()
+    db.execute(text("UPDATE submissions SET final_review_status='FINAL_REVIEW_LOCKED',updated_at=now() WHERE id=:id"), {"id":submission_id})
+    db.execute(text("""UPDATE anomaly_records SET status='CONFIRMED',resolution_note='已由教师复核最终分处理',resolved_by=:teacher,resolved_at=now()
+        WHERE submission_id=:submission AND risk_level='HIGH' AND status='OPEN'"""), {"teacher":teacher.id,"submission":submission_id})
+    audit(db, teacher.id, "CREATE_TEACHER_FINAL_REVIEW", "teacher_final_review", review_id, after={"submission_id":submission_id,"final_score":str(payload.final_score),"reason":payload.reason})
+    db.commit()
+    return ApiResponse(data={"teacher_final_review_id":review_id,"final_score":payload.final_score,"locked":True})
 
 
 @router.get("/assignments/{assignment_id}/publication-readiness", response_model=ApiResponse)
@@ -415,23 +444,22 @@ def publish_results(
     if not readiness["ready"]:
         raise HTTPException(424, {"code": "PUBLICATION_BLOCKED", **readiness})
     for row in rows:
-        final_score = calculate_final_score(
-            row["teacher_score"],
-            row["aggregate_score"],
-            assignment["teacher_weight"],
-            assignment["designated_review_weight"],
-        )
+        final_review = row["final_review_status"] == "FINAL_REVIEW_LOCKED"
+        final_score = row["final_review_score"] if final_review else calculate_final_score(
+            row["teacher_score"], row["aggregate_score"], assignment["teacher_weight"], assignment["designated_review_weight"])
         db.execute(
             text("""
-            INSERT INTO final_grades(submission_id, teacher_grade_id, aggregate_id,
-                                     final_score, published_by, teacher_weight, designated_review_weight)
-            VALUES (:submission, :grade, :aggregate, :score, :teacher, :tw, :rw)
+            INSERT INTO final_grades(submission_id, teacher_grade_id, aggregate_id, teacher_final_review_id, final_grade_source,
+                                      final_score, published_by, teacher_weight, designated_review_weight)
+            VALUES (:submission, :grade, :aggregate, :final_review, :source, :score, :teacher, :tw, :rw)
         """),
             {
                 "submission": row["id"],
                 "grade": row["teacher_grade_id"],
                 "aggregate": row["aggregate_id"],
                 "score": final_score,
+                "source": "TEACHER_FINAL_REVIEW" if final_review else "NORMAL_BLEND",
+                "final_review": row["final_review_id"] if final_review else None,
                 "teacher": teacher.id,
                 "tw": assignment["teacher_weight"],
                 "rw": assignment["designated_review_weight"],
