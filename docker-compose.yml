@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-algopeer}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-before-demo}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +20,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -33,11 +33,20 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://algopeer:change-me-before-demo@db:5432/algopeer}
+      APP_ENV: ${APP_ENV:-development}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       JWT_SECRET: ${JWT_SECRET:-development-only-change-me}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-480}
       STORAGE_DIR: ${STORAGE_DIR:-/app/storage}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+      AI_VIDEO_PROVIDER: ${AI_VIDEO_PROVIDER:-}
+      AI_VIDEO_API_KEY: ${AI_VIDEO_API_KEY:-}
+      AI_VIDEO_BASE_URL: ${AI_VIDEO_BASE_URL:-}
+      AI_VIDEO_MODEL: ${AI_VIDEO_MODEL:-}
+      AI_VIDEO_ENABLED: ${AI_VIDEO_ENABLED:-false}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./backend:/app
       - ./algorithm:/app/algorithm

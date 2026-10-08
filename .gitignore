@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+*.egg-info/
 backend/.env
 
 # Node / Vue
@@ -11,6 +12,7 @@ frontend/dist/
 
 # Runtime data and secrets
 .env
+.env.test.local
 *.log
 storage/
 tmp/
