@@ -37,6 +37,7 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       JWT_SECRET: ${JWT_SECRET:-development-only-change-me}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-480}
+      STORAGE_DIR: ${STORAGE_DIR:-/app/storage}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
       AI_VIDEO_PROVIDER: ${AI_VIDEO_PROVIDER:-}
@@ -49,11 +50,56 @@ services:
     volumes:
       - ./backend:/app
       - ./algorithm:/app/algorithm
+      - ./storage:/app/storage
+      - ./tests:/tests:ro
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
 
+  judge-image:
+    image: algopeer-judge-cpp:latest
+    build:
+      context: .
+      dockerfile: backend/judge/Dockerfile
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+    command: ["sh", "-c", "true"]
+
+  judge-worker:
+    build:
+      context: .
+      dockerfile: backend/judge-worker.Dockerfile
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://algopeer:change-me-before-demo@db:5432/algopeer}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JUDGE_QUEUE_NAME: ${JUDGE_QUEUE_NAME:-algopeer:judge:queue}
+      JUDGE_WORKER_CONCURRENCY: ${JUDGE_WORKER_CONCURRENCY:-1}
+      JUDGE_WORK_VOLUME: ${JUDGE_WORK_VOLUME:-algopeer-judge-work}
+      JUDGE_WORK_DIR: /judge-work
+      JUDGE_IMAGE: ${JUDGE_IMAGE:-algopeer-judge-cpp:latest}
+      JUDGE_SOURCE_LIMIT_BYTES: ${JUDGE_SOURCE_LIMIT_BYTES:-65536}
+      JUDGE_TOTAL_TIME_LIMIT_MS: ${JUDGE_TOTAL_TIME_LIMIT_MS:-10000}
+      JUDGE_OUTPUT_LIMIT_BYTES: ${JUDGE_OUTPUT_LIMIT_BYTES:-1048576}
+      JUDGE_COMPILER_OUTPUT_LIMIT_BYTES: ${JUDGE_COMPILER_OUTPUT_LIMIT_BYTES:-4096}
+    volumes:
+      - ./backend:/app
+      - judge-work:/judge-work
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      judge-image:
+        condition: service_completed_successfully
+
 volumes:
   postgres-data:
+  judge-work:
+    name: algopeer-judge-work

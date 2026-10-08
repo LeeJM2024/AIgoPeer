@@ -18,7 +18,13 @@ async def http_error(_request: Request, exc: HTTPException):
     details = {k: v for k, v in detail.items() if k != "code"} if isinstance(detail, dict) else {}
     return JSONResponse(
         status_code=exc.status_code,
-        content={"code": code, "message": code, "details": details},
+        content={
+            "code": code,
+            "message": code,
+            "details": details,
+            # Keep the legacy field while student-facing clients transition to code/details.
+            "detail": detail,
+        },
         headers=exc.headers,
     )
 

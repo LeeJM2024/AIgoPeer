@@ -15,6 +15,7 @@ frontend/dist/
 .env.test.local
 *.log
 storage/
+tmp/
 postgres-data/
 redis-data/
 
