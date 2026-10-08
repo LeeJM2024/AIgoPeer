@@ -14,7 +14,10 @@ from app.services.student.material_check_service import (
     _inspect_archive,
     get_material_check,
 )
-from app.services.student.project_submission_service import UploadContext, validate_archive_filename
+from app.services.student.project_submission_service import (
+    UploadContext,
+    validate_archive_filename,
+)
 
 
 def build_manifest() -> ProjectManifest:
