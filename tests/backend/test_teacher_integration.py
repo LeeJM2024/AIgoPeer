@@ -266,21 +266,36 @@ def test_draft_edit_preserves_panels_and_published_rules_are_frozen(course):
     assert c["client"].delete(url).status_code == 409
 
 
-def test_anomaly_resolution_records_actor_and_cannot_overwrite(grading_course):
+def test_high_risk_requires_final_review_and_medium_resolution_is_immutable(grading_course):
     c = grading_course
     with c["engine"].begin() as conn:
-        aid = conn.execute(
+        high_aid = conn.execute(
             text("""INSERT INTO anomaly_records(submission_id,algorithm_run_id,risk_level,risk_score,evidence_json)
             SELECT :s,id,'HIGH',.9,'{}' FROM algorithm_runs ORDER BY id DESC LIMIT 1 RETURNING id"""),
             {"s": c["submissions"][0]},
         ).scalar_one()
-    url = f"/api/teacher/anomalies/{aid}/resolve"
+    high_url = f"/api/teacher/anomalies/{high_aid}/resolve"
     assert (
         c["client"]
-        .post(url, json={"status": "DISMISSED", "note": "已核对原始证据"})
+        .post(high_url, json={"status": "DISMISSED", "note": "已核对原始证据"})
         .status_code
-        == 200
+        == 409
     )
+    with c["engine"].connect() as conn:
+        assert conn.execute(
+            text("SELECT status FROM anomaly_records WHERE id=:id"), {"id": high_aid}
+        ).scalar_one() == "OPEN"
+
+    with c["engine"].begin() as conn:
+        aid = conn.execute(
+            text("""INSERT INTO anomaly_records(submission_id,algorithm_run_id,risk_level,risk_score,evidence_json)
+            SELECT :s,id,'MEDIUM',.5,'{}' FROM algorithm_runs ORDER BY id DESC LIMIT 1 RETURNING id"""),
+            {"s": c["submissions"][0]},
+        ).scalar_one()
+    url = f"/api/teacher/anomalies/{aid}/resolve"
+    assert c["client"].post(
+        url, json={"status": "DISMISSED", "note": "已核对原始证据"}
+    ).status_code == 200
     assert (
         c["client"]
         .post(url, json={"status": "CONFIRMED", "note": "重复操作"})
@@ -336,7 +351,7 @@ def test_migration_downgrade_upgrade(pg_engine):
         command.upgrade(config, "head")
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "20260930_0003"
+            == "20261003_0004"
         )
 
 

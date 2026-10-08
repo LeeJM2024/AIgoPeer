@@ -91,6 +91,11 @@ class AnomalyResolutionInput(TeacherInput):
     note: str = Field(min_length=2, max_length=2000)
 
 
+class TeacherFinalReviewInput(TeacherInput):
+    final_score: Decimal = Field(ge=0, decimal_places=2)
+    reason: str = Field(min_length=3, max_length=2000)
+
+
 class ClassInput(TeacherInput):
     name: str = Field(min_length=1, max_length=100)
     course_term: str = Field(min_length=1, max_length=64)

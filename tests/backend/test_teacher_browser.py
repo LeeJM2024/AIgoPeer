@@ -34,6 +34,12 @@ def browser_app(grading_course):
             SELECT :s,id,'HIGH',.9,'{"reason":"测试异常证据"}' FROM algorithm_runs ORDER BY id DESC LIMIT 1"""),
             {"s": c["submissions"][0]},
         )
+        conn.execute(
+            text("""UPDATE submissions
+            SET final_review_status='ESCALATED_FOR_TEACHER_FINAL_REVIEW'
+            WHERE id=:submission"""),
+            {"submission": c["submissions"][0]},
+        )
     del app.dependency_overrides[get_current_user]
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
@@ -151,14 +157,19 @@ def test_real_teacher_workflow(browser_app, width, height):
             page.get_by_role("link", name="评审与异常", exact=True).click()
             page.wait_for_load_state("networkidle")
             page.locator("details").last.locator("summary").click()
-            page.get_by_label("复核说明", exact=True).fill("已核对原始证据，驳回提示")
-            page.get_by_role("button", name="驳回异常", exact=True).click()
-            expect(page.locator(".review-conclusion")).to_contain_text("已核对原始证据")
+            expect(page.get_by_text("高风险异常须在评分工作台录入复核最终分")).to_be_visible()
+            expect(page.get_by_role("button", name="驳回异常", exact=True)).to_have_count(0)
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             page.screenshot(
                 path=str(output / f"teacher-reviews-{width}.png"), full_page=True
             )
             page.get_by_role("link", name="返回评分", exact=True).click()
+            page.locator(".submission-index button").first.click()
+            expect(page.get_by_role("heading", name="高风险作品复核最终分")).to_be_visible()
+            page.get_by_label("复核最终分", exact=True).fill("91")
+            page.get_by_label("复核理由", exact=True).fill("已核对教师初评、同伴评分与异常证据。")
+            page.get_by_role("button", name="锁定复核最终分", exact=True).click()
+            expect(page.get_by_text("复核最终分已锁定：91")).to_be_visible()
             page.get_by_role("button", name="发布全部成绩", exact=True).click()
             expect(
                 page.get_by_role("button", name="成绩已发布", exact=True)
@@ -175,9 +186,9 @@ def test_real_teacher_workflow(browser_app, width, height):
             with page.expect_download() as download:
                 page.get_by_role("button", name="导出已发布成绩", exact=True).click()
             download.value.save_as(str(output / f"grades-{width}.csv"))
-            assert "89.00" in (output / f"grades-{width}.csv").read_text(
-                encoding="utf-8-sig"
-            )
+            exported = (output / f"grades-{width}.csv").read_text(encoding="utf-8-sig")
+            assert "91.00" in exported
+            assert "84.80" in exported
             page.get_by_role("link", name="班级与学生", exact=True).click()
             page.get_by_label("班级名称", exact=True).fill("浏览器导入测试班")
             page.get_by_label("学期", exact=True).fill("测试学期")

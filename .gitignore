@@ -12,6 +12,7 @@ frontend/dist/
 
 # Runtime data and secrets
 .env
+.env.test.local
 *.log
 storage/
 postgres-data/

@@ -138,6 +138,7 @@ def publication_readiness(db: Session, assignment_id: int):
                tg.id AS teacher_grade_id, tg.total_score AS teacher_score, tg.locked_at,
                ag.id AS aggregate_id, ag.total_score AS aggregate_score,
                ag.created_at AS aggregate_created_at,
+               s.final_review_status, fr.id AS final_review_id, fr.final_score AS final_review_score,
                (SELECT count(*) FROM anomaly_records ar
                 WHERE ar.submission_id = s.id AND ar.status = 'OPEN') AS open_anomalies,
                (SELECT count(*) FROM review_tasks rt WHERE rt.submission_id = s.id) AS task_count,
@@ -159,6 +160,7 @@ def publication_readiness(db: Session, assignment_id: int):
               AND run.panel_id = p.id AND run.status = 'COMPLETED'
             ORDER BY a.created_at DESC, a.id DESC LIMIT 1
         ) ag ON true
+        LEFT JOIN teacher_final_reviews fr ON fr.submission_id=s.id
         WHERE s.assignment_id = :id AND s.status = 'VALID' ORDER BY s.id
     """),
             {"id": assignment_id},
@@ -209,6 +211,8 @@ def publication_readiness(db: Session, assignment_id: int):
             reasons.append("AGGREGATE_STALE")
         if row["task_count"] != 5 or row["completed_tasks"] != 5:
             reasons.append("REVIEWS_INCOMPLETE")
+        if row["final_review_status"] == "ESCALATED_FOR_TEACHER_FINAL_REVIEW" or row["final_review_id"] is None and row["final_review_status"] == "FINAL_REVIEW_LOCKED":
+            reasons.append("TEACHER_FINAL_REVIEW_REQUIRED")
         for code in reasons:
             blockers.append(
                 {

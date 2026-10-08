@@ -214,7 +214,9 @@ async function extend() {
           </details>
           <template
             v-if="
-              item.status === 'OPEN' && assignment.status !== 'PUBLISHED_RESULT'
+              item.status === 'OPEN' &&
+              item.risk_level !== 'HIGH' &&
+              assignment.status !== 'PUBLISHED_RESULT'
             "
             ><label
               >复核说明<textarea
@@ -239,7 +241,12 @@ async function extend() {
                 确认异常
               </button>
             </div></template
+          ><p
+            v-else-if="item.status === 'OPEN' && item.risk_level === 'HIGH'"
+            class="notice notice-error"
           >
+            高风险异常须在评分工作台录入复核最终分，不能在此确认或驳回。
+          </p>
           <p v-else class="review-conclusion">
             {{ item.resolution_note || '成绩已发布'
             }}<small v-if="item.resolved_at">
