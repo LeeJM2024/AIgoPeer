@@ -6,6 +6,7 @@ from app.api.routes import (
     internal_review,
     reviewer_tasks,
     teacher_assignments,
+    teacher_evidence,
     teacher_grades,
     teacher_management,
     teacher_reports,
@@ -28,6 +29,7 @@ api_router.include_router(
 api_router.include_router(teacher_grades.router, prefix="/teacher", tags=["teacher-grades"])
 api_router.include_router(teacher_management.router, prefix="/teacher", tags=["teacher-management"])
 api_router.include_router(teacher_reports.router, prefix="/teacher", tags=["teacher-reports"])
+api_router.include_router(teacher_evidence.router, prefix="/teacher", tags=["teacher-evidence"])
 internal_router = APIRouter(dependencies=[Depends(require_internal_service)])
 internal_router.include_router(
     internal_review.router, prefix="/designated-review", tags=["internal-algorithm"]

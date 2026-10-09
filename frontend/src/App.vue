@@ -43,6 +43,9 @@ onUnmounted(() =>
         <RouterLink to="/teacher/ai-video" active-class="is-active"
           >视频智能分析</RouterLink
         >
+        <RouterLink to="/teacher/topics" active-class="is-active"
+          >知识点目录</RouterLink
+        >
       </nav>
       <div class="account-block">
         <span>{{ user?.name }}</span

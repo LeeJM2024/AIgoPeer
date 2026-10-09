@@ -351,7 +351,7 @@ def test_migration_downgrade_upgrade(pg_engine):
         command.upgrade(config, "head")
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "20261008_0005"
+            == "20261009_0006"
         )
 
 

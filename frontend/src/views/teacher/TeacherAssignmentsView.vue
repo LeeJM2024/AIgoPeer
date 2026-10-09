@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import ProgrammingProblemEditor from '../../components/teacher/ProgrammingProblemEditor.vue'
 import {
   createAssignment,
   getAssignments,
@@ -17,6 +18,17 @@ const classes = ref([])
 const showForm = ref(false)
 const error = ref('')
 const busy = ref(false)
+const blankProblem = () => ({
+  statement: '',
+  input_description: '',
+  output_description: '',
+  time_limit_ms: 2000,
+  memory_limit_mb: 256,
+  test_cases: [
+    { input_data: '', expected_output: '', is_public: true },
+    { input_data: '', expected_output: '', is_public: false },
+  ],
+})
 const stateName = {
   DRAFT: '草稿',
   PUBLISHED: '已发布',
@@ -30,6 +42,7 @@ const stateName = {
 const form = reactive({
   title: '',
   type: 'FINAL_PROJECT',
+  programming_problem: blankProblem(),
   class_ids: [],
   submit_deadline: '',
   review_deadline: '',
@@ -62,6 +75,7 @@ const form = reactive({
     },
   ],
 })
+const defaultRubric = form.rubric_items.map((item) => ({ ...item }))
 
 async function load() {
   try {
@@ -96,9 +110,15 @@ function newDraft() {
   if (busy.value) return
   editingId.value = null
   form.title = ''
+  form.type = 'FINAL_PROJECT'
+  form.programming_problem = blankProblem()
   form.class_ids = []
   form.submit_deadline = ''
   form.review_deadline = ''
+  form.teacher_weight = 0.6
+  form.designated_review_weight = 0.4
+  form.rubric_items = defaultRubric.map((item) => ({ ...item }))
+  delete form.expected_updated_at
   showForm.value = !showForm.value
   error.value = ''
   notice.value = ''
@@ -113,6 +133,7 @@ async function edit(item) {
       expected_updated_at: detail.updated_at,
       title: detail.title,
       type: detail.type,
+      programming_problem: detail.programming_problem || blankProblem(),
       class_ids: detail.classes.map((c) => c.id),
       submit_deadline: localTime(detail.submit_deadline),
       review_deadline: localTime(detail.review_deadline),
@@ -162,7 +183,21 @@ async function submit() {
     const payload = {
       ...form,
       submit_deadline: new Date(form.submit_deadline).toISOString(),
-      review_deadline: new Date(form.review_deadline).toISOString(),
+      review_deadline:
+        form.type === 'PROGRAMMING'
+          ? new Date(
+              new Date(form.submit_deadline).getTime() + 86400000,
+            ).toISOString()
+          : new Date(form.review_deadline).toISOString(),
+      programming_problem:
+        form.type === 'PROGRAMMING' ? form.programming_problem : null,
+      teacher_weight: form.type === 'PROGRAMMING' ? 1 : form.teacher_weight,
+      designated_review_weight:
+        form.type === 'PROGRAMMING' ? 0 : form.designated_review_weight,
+      rubric_items:
+        form.type === 'PROGRAMMING'
+          ? [{ name: '编程题', max_score: 100, sort_order: 1 }]
+          : form.rubric_items,
     }
     const result = editingId.value
       ? await editAssignment(editingId.value, payload)
@@ -201,18 +236,16 @@ async function submit() {
         <div>
           <h2>{{ editingId ? '编辑草稿' : '新建作业' }}</h2>
           <p>
-            保存后仍为草稿，配置两组评审人后才能发布。修改适用班级将清空已有评审组。
+            期末作业需配置两组评审人；编程作业需填写完整题目和测试用例。保存后仍为草稿。
           </p>
         </div>
       </div>
       <fieldset class="bare-fieldset" :disabled="busy">
         <div class="form-grid">
           <label
-            >作业类型<select v-model="form.type">
+            >作业类型<select v-model="form.type" aria-label="作业类型">
               <option value="FINAL_PROJECT">期末微课作业</option>
-              <option value="PROGRAMMING">
-                编程作业（判题由学生模块接入）
-              </option>
+              <option value="PROGRAMMING">编程作业（C++17 自动测评）</option>
             </select></label
           ><label class="span-2"
             >作业名称<input v-model="form.title" required maxlength="200"
@@ -223,7 +256,7 @@ async function submit() {
               type="datetime-local"
               required
           /></label>
-          <label
+          <label v-if="form.type === 'FINAL_PROJECT'"
             >评审截止时间<input
               v-model="form.review_deadline"
               type="datetime-local"
@@ -244,7 +277,7 @@ async function submit() {
               <small>{{ item.student_count }} 人</small></label
             >
           </fieldset>
-          <label
+          <label v-if="form.type === 'FINAL_PROJECT'"
             >教师评分权重<input
               v-model.number="form.teacher_weight"
               type="number"
@@ -253,7 +286,7 @@ async function submit() {
               step="0.05"
               required
           /></label>
-          <label
+          <label v-if="form.type === 'FINAL_PROJECT'"
             >跨班评审权重<input
               v-model.number="form.designated_review_weight"
               type="number"
@@ -263,7 +296,11 @@ async function submit() {
               required
           /></label>
         </div>
-        <div class="rubric-editor">
+        <ProgrammingProblemEditor
+          v-if="form.type === 'PROGRAMMING'"
+          :problem="form.programming_problem"
+        />
+        <div v-else class="rubric-editor">
           <div class="section-heading">
             <div>
               <h3>评分量表</h3>
@@ -345,10 +382,11 @@ async function submit() {
               </td>
               <td>{{ item.submission_count }}</td>
               <td>{{ item.review_task_count }}</td>
-              <td>
+              <td v-if="item.type === 'FINAL_PROJECT'">
                 {{ Number(item.teacher_weight) * 100 }}% /
                 {{ Number(item.designated_review_weight) * 100 }}%
               </td>
+              <td v-else>自动测评</td>
               <td>
                 <div class="toolbar">
                   <RouterLink :to="`/teacher/assignments/${item.id}`"

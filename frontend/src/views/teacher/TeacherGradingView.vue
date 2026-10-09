@@ -12,12 +12,19 @@ import {
   createTeacherFinalReview,
 } from '../../api/teacher'
 import { errorMessages } from '../../api/errors'
+import SubmissionEvidence from '../../components/teacher/SubmissionEvidence.vue'
 
 const id = Number(useRoute().params.id),
   data = ref(null),
   selectedId = ref(null),
   correctionMode = ref(false)
-const form = reactive({ scores: {}, comment: '', reason: '', finalScore: '', finalReason: '' }),
+const form = reactive({
+    scores: {},
+    comment: '',
+    reason: '',
+    finalScore: '',
+    finalReason: '',
+  }),
   error = ref(''),
   notice = ref(''),
   busy = ref(false),
@@ -148,8 +155,16 @@ async function saveFinalReview() {
     error.value = '请填写复核最终分与复核理由。'
     return
   }
+  if (
+    !confirm('复核最终分将直接作为本作品最终成绩，锁定后不可修改。确认提交？')
+  )
+    return
   await perform(
-    () => createTeacherFinalReview(selected.value.id, { final_score: Number(form.finalScore), reason: form.finalReason }),
+    () =>
+      createTeacherFinalReview(selected.value.id, {
+        final_score: Number(form.finalScore),
+        reason: form.finalReason,
+      }),
     '复核最终分已锁定；高风险异常已自动归档。',
   )
 }
@@ -179,7 +194,7 @@ function publishAll() {
     <header class="page-heading">
       <div>
         <h1>评分工作台</h1>
-        <p>教师独立录分，锁定最新版本后，按固定权重发布成绩。</p>
+        <p>普通作品按固定权重发布；高风险作品采用教师锁定的复核最终分。</p>
       </div>
       <div class="toolbar">
         <RouterLink
@@ -270,10 +285,19 @@ function publishAll() {
               >
             </div>
           </div>
-          <p v-if="selected.final_review_status === 'ESCALATED_FOR_TEACHER_FINAL_REVIEW'" class="notice notice-error">
+          <p
+            v-if="
+              selected.final_review_status ===
+              'ESCALATED_FOR_TEACHER_FINAL_REVIEW'
+            "
+            class="notice notice-error"
+          >
             此作品存在高风险评分。请结合教师初评、同伴聚合和异常证据完成复核最终分。
           </p>
-          <p v-else-if="selected.final_review_status === 'FINAL_REVIEW_LOCKED'" class="notice notice-success">
+          <p
+            v-else-if="selected.final_review_status === 'FINAL_REVIEW_LOCKED'"
+            class="notice notice-success"
+          >
             复核最终分已锁定：{{ selected.final_review_score }}。
           </p>
           <div class="evidence-placeholder">
@@ -289,8 +313,11 @@ function publishAll() {
             <p v-if="selected.missing_items?.length">
               缺少：{{ selected.missing_items.join('、') }}
             </p>
-            <p>当前暂无在线材料，请通过课程收集渠道核对原始证据后评分。</p>
           </div>
+          <SubmissionEvidence
+            :key="selected.id + ':' + selected.final_review_status"
+            :submission-id="selected.id"
+          />
           <p v-if="!eligible && !published" class="notice notice-error">
             当前提交或作业阶段不允许评分。
           </p>
@@ -370,11 +397,38 @@ function publishAll() {
               </button>
             </div>
           </form>
-          <form v-if="selected.final_review_status === 'ESCALATED_FOR_TEACHER_FINAL_REVIEW'" class="data-section" @submit.prevent="saveFinalReview">
+          <form
+            v-if="
+              selected.final_review_status ===
+                'ESCALATED_FOR_TEACHER_FINAL_REVIEW' &&
+              data.assignment.status === 'TEACHER_GRADING' &&
+              !published
+            "
+            class="data-section"
+            @submit.prevent="saveFinalReview"
+          >
             <h3>高风险作品复核最终分</h3>
             <p>该分会直接作为最终成绩，其他分数均完整保留审计。</p>
-            <label>复核最终分<input v-model="form.finalScore" type="number" min="0" step="0.01" required /></label>
-            <label>复核理由<textarea v-model="form.finalReason" rows="3" minlength="3" maxlength="2000" required /></label>
+            <label
+              >复核最终分<input
+                v-model="form.finalScore"
+                type="number"
+                min="0"
+                :max="
+                  data.rubric_items.reduce((n, r) => n + Number(r.max_score), 0)
+                "
+                step="0.01"
+                required
+            /></label>
+            <label
+              >复核理由<textarea
+                v-model="form.finalReason"
+                rows="3"
+                minlength="3"
+                maxlength="2000"
+                required
+              />
+            </label>
             <button class="button" :disabled="busy">锁定复核最终分</button>
           </form>
           <section class="grade-history">

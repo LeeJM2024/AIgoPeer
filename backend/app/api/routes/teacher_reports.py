@@ -59,10 +59,13 @@ def assignment_statistics(
             text("""
         SELECT s.id AS submission_id,u.student_no,u.name,c.name AS class_name,
           f.final_score,t.total_score AS teacher_score,a.total_score AS aggregate_score,
-          t.version AS teacher_grade_version,f.teacher_weight,f.designated_review_weight,f.published_at
+          t.version AS teacher_grade_version,f.teacher_weight,f.designated_review_weight,f.published_at,
+          f.final_grade_source,fr.final_score AS final_review_score,fr.reason AS final_review_reason,
+          fr.locked_at AS final_review_locked_at
         FROM final_grades f JOIN submissions s ON s.id=f.submission_id JOIN users u ON u.id=s.author_id
         JOIN classes c ON c.id=s.class_id JOIN teacher_grades t ON t.id=f.teacher_grade_id
         LEFT JOIN designated_review_aggregates a ON a.id=f.aggregate_id
+        LEFT JOIN teacher_final_reviews fr ON fr.id=f.teacher_final_review_id
         WHERE s.assignment_id=:id ORDER BY c.name,u.student_no,s.id
     """),
             {"id": assignment_id},
