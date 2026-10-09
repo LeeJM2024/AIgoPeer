@@ -466,8 +466,15 @@ def initialize_review_tasks(
                 text("""
             SELECT s.id, s.anonymous_token FROM submissions s
             JOIN material_checks mc ON mc.submission_id = s.id
+            LEFT JOIN review_material_packages review_package ON review_package.submission_id=s.id
             WHERE s.assignment_id = :assignment_id AND s.class_id = :class_id
-              AND s.is_current AND s.status = 'VALID' AND mc.status = 'VALID' ORDER BY s.id
+              AND s.is_current AND s.status = 'VALID' AND mc.status = 'VALID'
+              AND (
+                NOT EXISTS(SELECT 1 FROM submission_files source_file
+                           WHERE source_file.submission_id=s.id AND source_file.file_kind='ZIP')
+                OR review_package.status='READY'
+              )
+            ORDER BY s.id
         """),
                 {"assignment_id": assignment_id, "class_id": panel["target_class_id"]},
             )

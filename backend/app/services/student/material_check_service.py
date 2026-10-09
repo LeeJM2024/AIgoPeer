@@ -15,6 +15,10 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.schemas.student_submission import ProjectManifest
+from app.services.student.review_anonymization_service import (
+    AnonymizationError,
+    build_anonymous_review_archive,
+)
 
 MAX_ARCHIVE_ENTRIES = 1000
 MAX_UNCOMPRESSED_BYTES = 1024 * 1024 * 1024
@@ -162,6 +166,27 @@ def _record_result(
     db.commit()
 
 
+def _record_review_package(
+    *, db: Session, submission_id: int, status_value: str, storage_key: str | None = None,
+    failure_code: str | None = None, details: dict[str, Any] | None = None,
+) -> None:
+    db.execute(
+        text(
+            """INSERT INTO review_material_packages(submission_id,storage_key,status,failure_code,details_json)
+               VALUES (:submission_id,:storage_key,:status,:failure_code,CAST(:details AS jsonb))
+               ON CONFLICT(submission_id) DO UPDATE SET storage_key=EXCLUDED.storage_key,status=EXCLUDED.status,
+                 failure_code=EXCLUDED.failure_code,details_json=EXCLUDED.details_json,updated_at=now()"""
+        ),
+        {
+            "submission_id": submission_id,
+            "storage_key": storage_key,
+            "status": status_value,
+            "failure_code": failure_code,
+            "details": json.dumps(details or {}),
+        },
+    )
+
+
 def run_material_check(submission_id: int) -> None:
     """Background entry point. Every result, including malformed ZIPs, is persisted."""
     db = SessionLocal()
@@ -169,9 +194,11 @@ def run_material_check(submission_id: int) -> None:
         row = db.execute(
             text(
                 """
-                SELECT submission.manifest_json, submission_file.storage_key
+                SELECT submission.manifest_json, submission_file.storage_key, user.name AS author_name,
+                       user.student_no
                 FROM submissions AS submission
                 JOIN submission_files AS submission_file ON submission_file.submission_id = submission.id
+                JOIN users AS user ON user.id = submission.author_id
                 WHERE submission.id = :submission_id AND submission_file.file_kind = 'ZIP'
                 """
             ),
@@ -181,6 +208,38 @@ def run_material_check(submission_id: int) -> None:
         missing_items, warnings, details = _inspect_archive(
             archive_path=settings.storage_dir / str(row["storage_key"]), manifest=manifest
         )
+        if not missing_items:
+            try:
+                review_key = build_anonymous_review_archive(
+                    source_archive=settings.storage_dir / str(row["storage_key"]),
+                    author_name=str(row["author_name"]),
+                    student_no=str(row["student_no"]),
+                    allowed_paths={
+                        manifest.ppt_path,
+                        manifest.video_path,
+                        manifest.readme_path,
+                        *manifest.source_paths,
+                        *(example.path for example in manifest.examples if example.path),
+                        *(test.input_path for test in manifest.tests),
+                        *(test.expected_path for test in manifest.tests),
+                    },
+                )
+                _record_review_package(
+                    db=db, submission_id=submission_id, status_value="READY", storage_key=review_key
+                )
+            except AnonymizationError as exc:
+                _record_review_package(
+                    db=db, submission_id=submission_id, status_value="FAILED", failure_code=exc.code
+                )
+                _record_result(
+                    db=db,
+                    submission_id=submission_id,
+                    status_value="INVALID",
+                    missing_items=["ANONYMIZATION"],
+                    warnings=[],
+                    details={"error_code": exc.code},
+                )
+                return
         _record_result(
             db=db,
             submission_id=submission_id,

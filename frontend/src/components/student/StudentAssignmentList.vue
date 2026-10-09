@@ -64,7 +64,14 @@ const actionLabel = (assignment) => {
       </dl>
 
       <RouterLink
-        v-if="assignment.type === 'FINAL_PROJECT'"
+        v-if="assignment.status === 'PUBLISHED_RESULT' && assignment.type === 'FINAL_PROJECT'"
+        class="action-link"
+        :to="`/student/assignments/${assignment.id}/grade`"
+      >
+        查看最终成绩
+      </RouterLink>
+      <RouterLink
+        v-else-if="assignment.type === 'FINAL_PROJECT'"
         class="action-link"
         :to="`/student/assignments/${assignment.id}/project-submission`"
       >
