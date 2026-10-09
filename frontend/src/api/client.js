@@ -9,6 +9,7 @@ export async function apiFetch(path, options = {}) {
   if (options.body && !(options.body instanceof FormData))
     headers.set('Content-Type', 'application/json')
   const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  if (response.ok && options.responseType === 'blob') return response.blob()
   const body = await response.json().catch(() => null)
   if (response.status === 401 && path !== '/api/auth/login') {
     localStorage.removeItem('algopeer_token')

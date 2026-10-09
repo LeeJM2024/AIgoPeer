@@ -70,7 +70,7 @@ def main() -> None:
             programming_assignment_id = scalar_id(
                 db,
                 """INSERT INTO assignments(title, type, status, teacher_weight, designated_review_weight, created_by)
-                   VALUES ('整数求和（编程题演示）', 'PROGRAMMING', 'PUBLISHED', 0.6, 0.4, :teacher_id)
+                   VALUES ('整数求和（编程题演示）', 'PROGRAMMING', 'DRAFT', 0.6, 0.4, :teacher_id)
                    RETURNING id""",
                 teacher_id=teacher_id,
             )
@@ -116,6 +116,8 @@ def main() -> None:
                         "is_public": is_public,
                     },
                 )
+
+            db.execute(text("UPDATE assignments SET status='PUBLISHED',updated_at=now() WHERE id=:id"), {"id": programming_assignment_id})
 
         existing_assignment = db.execute(
             text(

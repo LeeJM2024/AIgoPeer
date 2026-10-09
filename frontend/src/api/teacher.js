@@ -1,6 +1,34 @@
 import { apiFetch } from './client'
 
 export const getDashboard = () => apiFetch('/api/teacher/dashboard')
+export const getProgrammingResults = (id) =>
+  apiFetch(`/api/teacher/assignments/${id}/programming-results`)
+export const getTopics = () => apiFetch('/api/teacher/topics')
+export const createTopic = (payload) =>
+  apiFetch('/api/teacher/topics', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+export const updateTopic = (id, payload) =>
+  apiFetch(`/api/teacher/topics/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+export const deleteTopic = (id) =>
+  apiFetch(`/api/teacher/topics/${id}`, { method: 'DELETE' })
+export const getEvidence = (id) =>
+  apiFetch(`/api/teacher/submissions/${id}/evidence`)
+export const getMaterial = (id, path) =>
+  apiFetch(
+    `/api/teacher/submissions/${id}/material${path ? '?path=' + encodeURIComponent(path) : ''}`,
+    { responseType: 'blob' },
+  )
+export const getAlgorithmRuns = (id) =>
+  apiFetch(`/api/teacher/assignments/${id}/algorithm-runs`)
+export const aggregateReviews = (id) =>
+  apiFetch(`/api/teacher/assignments/${id}/aggregate-reviews`, {
+    method: 'POST',
+  })
 export const getClasses = () => apiFetch('/api/teacher/classes')
 export const getClassStudents = (id) =>
   apiFetch(`/api/teacher/classes/${id}/students`)

@@ -8,10 +8,93 @@ from sqlalchemy.orm import Session
 from app.core.security import CurrentUser, hash_password, require_teacher
 from app.db.session import get_db
 from app.schemas.common import ApiResponse
-from app.schemas.teacher import ClassInput, StudentImportInput
+from app.schemas.teacher import ClassInput, StudentImportInput, TopicInput, TopicUpdate
 from app.services.teacher_workflow import audit
 
 router = APIRouter()
+
+
+@router.get("/topics", response_model=ApiResponse)
+def teacher_topics(_: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)):
+    rows = (
+        db.execute(
+            text("""SELECT t.*, (SELECT count(*) FROM topic_claims c WHERE c.topic_id=t.id) AS claim_count
+        FROM topics t ORDER BY t.code""")
+        )
+        .mappings()
+        .all()
+    )
+    return ApiResponse(data=[dict(r) for r in rows])
+
+
+@router.post("/topics", response_model=ApiResponse, status_code=201)
+def create_topic(
+    payload: TopicInput,
+    teacher: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    topic_id = db.execute(
+        text("""INSERT INTO topics(code,chapter,name,description)
+        VALUES (:code,:chapter,:name,:description) RETURNING id"""),
+        payload.model_dump(),
+    ).scalar_one()
+    audit(db, teacher.id, "CREATE_TOPIC", "topic", topic_id, after=payload.model_dump())
+    db.commit()
+    return ApiResponse(data={"topic_id": topic_id})
+
+
+def _editable_topic(db, topic_id):
+    row = (
+        db.execute(text("SELECT * FROM topics WHERE id=:id FOR UPDATE"), {"id": topic_id})
+        .mappings()
+        .one_or_none()
+    )
+    if row is None:
+        raise HTTPException(404, "NOT_FOUND")
+    if db.execute(
+        text("SELECT EXISTS(SELECT 1 FROM topic_claims WHERE topic_id=:id)"), {"id": topic_id}
+    ).scalar_one():
+        raise HTTPException(409, "TOPIC_ALREADY_CLAIMED")
+    return row
+
+
+@router.put("/topics/{topic_id}", response_model=ApiResponse)
+def update_topic(
+    topic_id: int,
+    payload: TopicUpdate,
+    teacher: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    row = _editable_topic(db, topic_id)
+    if row["updated_at"] != payload.expected_updated_at:
+        raise HTTPException(409, "DRAFT_VERSION_CONFLICT")
+    db.execute(
+        text("""UPDATE topics SET code=:code,chapter=:chapter,name=:name,description=:description,
+        updated_at=now() WHERE id=:id"""),
+        {"id": topic_id, **payload.model_dump(exclude={"expected_updated_at"})},
+    )
+    audit(
+        db,
+        teacher.id,
+        "UPDATE_TOPIC",
+        "topic",
+        topic_id,
+        before=dict(row),
+        after=payload.model_dump(),
+    )
+    db.commit()
+    return ApiResponse(data={"topic_id": topic_id})
+
+
+@router.delete("/topics/{topic_id}", response_model=ApiResponse)
+def delete_topic(
+    topic_id: int, teacher: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)
+):
+    row = _editable_topic(db, topic_id)
+    db.execute(text("DELETE FROM topics WHERE id=:id"), {"id": topic_id})
+    audit(db, teacher.id, "DELETE_TOPIC", "topic", topic_id, before=dict(row))
+    db.commit()
+    return ApiResponse(data={"deleted": True})
 
 
 @router.post("/classes", response_model=ApiResponse, status_code=201)
@@ -170,6 +253,7 @@ def remove_enrollment(
         SELECT EXISTS(SELECT 1 FROM panel_reviewers pr JOIN review_panels p ON p.id = pr.panel_id
                       WHERE pr.reviewer_id = :student AND p.reviewer_class_id = :class)
             OR EXISTS(SELECT 1 FROM submissions WHERE author_id = :student AND class_id = :class)
+            OR EXISTS(SELECT 1 FROM code_submissions WHERE author_id = :student AND class_id = :class)
     """),
         {"student": student_id, "class": class_id},
     ).scalar_one()

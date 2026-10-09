@@ -1,4 +1,18 @@
 export const errorMessages = {
+  TOPIC_ALREADY_CLAIMED:
+    '此知识点已被学生认领，不能修改或删除。请新增另一个条目。',
+  PROGRAMMING_PROBLEM_NOT_READY: '请先补齐题目说明、公开样例和隐藏测试用例。',
+  FINAL_PROJECT_REQUIRED: '此操作只适用于期末微课作业。',
+  MATERIAL_NOT_FOUND: '材料文件不存在或已不可用，请核对上传记录。',
+  UNSAFE_ARCHIVE_ENTRY: '此材料无法安全读取，请核对压缩包。',
+  FINAL_REVIEW_NOT_READY: '请等待两组评审聚合完成后，再录入复核最终分。',
+  FINAL_REVIEW_ALREADY_LOCKED: '复核最终分已锁定，请刷新查看已保存的记录。',
+  FINAL_REVIEW_SCORE_OUT_OF_RANGE: '复核最终分不能超过量表满分。',
+  HIGH_RISK_REVIEW_NOT_FOUND: '当前作品不需要高风险复核，请刷新状态。',
+  TEACHER_FINAL_REVIEW_REQUIRED: '高风险作品需要教师锁定复核最终分',
+  HIGH_RISK_REQUIRES_FINAL_REVIEW: '请到评分工作台录入复核最终分。',
+  FINAL_REVIEW_PREVENTS_REAGGREGATION:
+    '已存在锁定的复核最终分，不能用新的评审输入重新聚合。',
   LOGIN_RATE_LIMITED: '登录尝试过于频繁，请稍后再试。',
   VALIDATION_ERROR: '输入内容不符合要求，请检查必填项、时间和分值精度。',
   CONFLICT: '数据已发生变化或与现有记录冲突，请刷新后重试。',

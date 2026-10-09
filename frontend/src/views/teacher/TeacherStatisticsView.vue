@@ -21,6 +21,9 @@ function exportCsv() {
     '教师分',
     '评审分',
     '最终分',
+    '成绩来源',
+    '复核最终分',
+    '复核理由',
     '教师分版本',
     '教师权重',
     '评审权重',
@@ -34,6 +37,11 @@ function exportCsv() {
     g.teacher_score,
     g.aggregate_score,
     g.final_score,
+    g.final_grade_source === 'TEACHER_FINAL_REVIEW'
+      ? '教师复核最终分'
+      : '教师与评审加权',
+    g.final_review_score,
+    g.final_review_reason,
     g.teacher_grade_version,
     g.teacher_weight,
     g.designated_review_weight,
@@ -145,6 +153,7 @@ function exportCsv() {
                 <th>聚合分</th>
                 <th>最终分</th>
                 <th>采用版本</th>
+                <th>成绩来源</th>
               </tr>
             </thead>
             <tbody>
@@ -159,6 +168,15 @@ function exportCsv() {
                   <strong>{{ g.final_score }}</strong>
                 </td>
                 <td>v{{ g.teacher_grade_version }}</td>
+                <td>
+                  {{
+                    g.final_grade_source === 'TEACHER_FINAL_REVIEW'
+                      ? '教师复核最终分'
+                      : '按权重加权'
+                  }}<small v-if="g.final_review_reason">{{
+                    g.final_review_reason
+                  }}</small>
+                </td>
               </tr>
             </tbody>
           </table>

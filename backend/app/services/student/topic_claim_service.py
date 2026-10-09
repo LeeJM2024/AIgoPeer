@@ -75,7 +75,7 @@ def claim_topic(
 ) -> TopicClaimResponse:
     _require_visible_assignment(db=db, assignment_id=assignment_id, student_id=student_id)
     topic = db.execute(
-        text("SELECT id, code, chapter, name, description FROM topics WHERE id = :topic_id"),
+        text("SELECT id, code, chapter, name, description FROM topics WHERE id = :topic_id FOR SHARE"),
         {"topic_id": topic_id},
     ).mappings().one_or_none()
     if topic is None:

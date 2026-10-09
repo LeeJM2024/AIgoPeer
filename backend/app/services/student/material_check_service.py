@@ -156,7 +156,7 @@ def _record_result(
         },
     )
     db.execute(
-        text("UPDATE submissions SET status = :status, updated_at = now() WHERE id = :submission_id"),
+        text("UPDATE submissions SET status = CASE WHEN is_current THEN :status ELSE 'SUPERSEDED' END, updated_at = now() WHERE id = :submission_id"),
         {"submission_id": submission_id, "status": status_value},
     )
     db.commit()

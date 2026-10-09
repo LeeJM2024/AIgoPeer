@@ -107,7 +107,7 @@ def grading_workspace(
         LEFT JOIN anomaly_records ar ON ar.submission_id = s.id
         LEFT JOIN teacher_final_reviews fr ON fr.submission_id = s.id
         LEFT JOIN final_grades fg ON fg.submission_id = s.id
-        WHERE s.assignment_id = :id
+        WHERE s.assignment_id = :id AND s.is_current
         GROUP BY s.id, u.student_no, u.name, c.name, mc.status, mc.missing_items, tg.id, tg.total_score, tg.version,
                  tg.locked_at, tg.feedback, tg.rubric_scores_json, agg.id, agg.total_score, s.final_review_status, fr.id, fr.final_score, fg.final_score, fg.published_at
         ORDER BY c.name, u.student_no
@@ -367,6 +367,16 @@ def create_teacher_final_review(
     teacher: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)
 ) -> ApiResponse:
     submission = lock_submission(db, submission_id)
+    assignment = lock_assignment(db, submission["assignment_id"])
+    if assignment["status"] != "TEACHER_GRADING":
+        raise HTTPException(409, "FINAL_REVIEW_NOT_READY")
+    existing = db.execute(text("SELECT * FROM teacher_final_reviews WHERE submission_id=:id"), {"id": submission_id}).mappings().one_or_none()
+    if existing:
+        if existing["final_score"] == payload.final_score and existing["reason"] == payload.reason and existing["entered_by"] == teacher.id:
+            return ApiResponse(data={"teacher_final_review_id": existing["id"], "final_score": existing["final_score"], "locked": True})
+        raise HTTPException(409, "FINAL_REVIEW_ALREADY_LOCKED")
+    if submission["final_review_status"] != "ESCALATED_FOR_TEACHER_FINAL_REVIEW":
+        raise HTTPException(409, "HIGH_RISK_REVIEW_NOT_FOUND")
     maximum = db.execute(text("""SELECT COALESCE(sum(ri.max_score),0) FROM rubric_items ri
         JOIN rubrics r ON r.id=ri.rubric_id WHERE r.assignment_id=:id"""), {"id": submission["assignment_id"]}).scalar_one()
     if payload.final_score > maximum:
@@ -382,7 +392,7 @@ def create_teacher_final_review(
         WHERE submission_id=:submission AND risk_level='HIGH' AND status='OPEN'"""), {"teacher":teacher.id,"submission":submission_id})
     audit(db, teacher.id, "CREATE_TEACHER_FINAL_REVIEW", "teacher_final_review", review_id, after={"submission_id":submission_id,"final_score":str(payload.final_score),"reason":payload.reason})
     db.commit()
-    return ApiResponse(data={"teacher_final_review_id":review_id,"final_score":payload.final_score,"locked":True})
+    return ApiResponse(data={"teacher_final_review_id":review_id,"final_score":payload.final_score.quantize(Decimal('0.01')),"locked":True})
 
 
 @router.get("/assignments/{assignment_id}/publication-readiness", response_model=ApiResponse)

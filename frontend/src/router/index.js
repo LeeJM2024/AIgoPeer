@@ -10,6 +10,7 @@ import TeacherAssignmentsView from '../views/teacher/TeacherAssignmentsView.vue'
 import TeacherAssignmentView from '../views/teacher/TeacherAssignmentView.vue'
 import TeacherGradingView from '../views/teacher/TeacherGradingView.vue'
 import TeacherClassesView from '../views/teacher/TeacherClassesView.vue'
+import TeacherTopicsView from '../views/teacher/TeacherTopicsView.vue'
 import TeacherReviewView from '../views/teacher/TeacherReviewView.vue'
 import TeacherStatisticsView from '../views/teacher/TeacherStatisticsView.vue'
 import TeacherAiSettingsView from '../views/teacher/TeacherAiSettingsView.vue'
@@ -19,6 +20,11 @@ const router = createRouter({
   history: createWebHistory(),
   scrollBehavior: () => ({ top: 0 }),
   routes: [
+    {
+      path: '/teacher/topics',
+      component: TeacherTopicsView,
+      meta: { teacher: true },
+    },
     { path: '/', component: HomeView },
     { path: '/login', component: LoginView, meta: { public: true } },
     { path: '/student', component: StudentWorkspaceView },

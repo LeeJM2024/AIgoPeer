@@ -64,7 +64,7 @@ def lock_submission(db: Session, submission_id: int):
         .mappings()
         .one()
     )
-    if row["status"] != "VALID" or row["material_status"] != "VALID":
+    if not row["is_current"] or row["status"] != "VALID" or row["material_status"] != "VALID":
         raise HTTPException(422, "SUBMISSION_NOT_VALID")
     return row
 
@@ -161,7 +161,7 @@ def publication_readiness(db: Session, assignment_id: int):
             ORDER BY a.created_at DESC, a.id DESC LIMIT 1
         ) ag ON true
         LEFT JOIN teacher_final_reviews fr ON fr.submission_id=s.id
-        WHERE s.assignment_id = :id AND s.status = 'VALID' ORDER BY s.id
+        WHERE s.assignment_id = :id AND s.is_current AND s.status = 'VALID' ORDER BY s.id
     """),
             {"id": assignment_id},
         )

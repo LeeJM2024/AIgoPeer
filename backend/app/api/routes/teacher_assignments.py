@@ -19,6 +19,7 @@ from app.schemas.teacher import (
     ReviewDeadlineInput,
     ReviewPanelsInput,
 )
+from app.services.teacher_programming import get_programming_problem, save_programming_problem
 from app.services.teacher_workflow import audit, lock_assignment, validate_saved_panels
 from app.services.video_ai_provider import get_video_provider_status
 
@@ -115,7 +116,10 @@ def list_assignments(
             text("""
         SELECT a.id, a.title, a.type, a.status, a.submit_deadline, a.review_deadline,
                a.teacher_weight, a.designated_review_weight,
-               (SELECT count(*) FROM submissions s WHERE s.assignment_id=a.id) AS submission_count,
+               CASE WHEN a.type='PROGRAMMING' THEN
+                 (SELECT count(*) FROM code_submissions cs WHERE cs.assignment_id=a.id AND cs.is_current)
+                 ELSE (SELECT count(*) FROM submissions s WHERE s.assignment_id=a.id AND s.is_current)
+               END AS submission_count,
                (SELECT count(*) FROM review_tasks rt JOIN review_panels p ON p.id=rt.panel_id
                  WHERE p.assignment_id=a.id) AS review_task_count
         FROM assignments a
@@ -184,6 +188,7 @@ def create_assignment(
             """),
                 {"rubric_id": rubric_id, **item.model_dump()},
             )
+        save_programming_problem(db, assignment_id, payload.programming_problem)
         audit(
             db,
             teacher.id,
@@ -253,6 +258,7 @@ def get_assignment(
             "classes": [dict(row) for row in classes],
             "rubric_items": [dict(row) for row in rubric],
             "panels": [dict(row) for row in panels],
+            "programming_problem": get_programming_problem(db, assignment_id),
         }
     )
 
@@ -266,7 +272,7 @@ def configure_panels(
 ) -> ApiResponse:
     assignment = (
         db.execute(
-            text("SELECT status FROM assignments WHERE id = :id FOR UPDATE"), {"id": assignment_id}
+            text("SELECT status,type FROM assignments WHERE id = :id FOR UPDATE"), {"id": assignment_id}
         )
         .mappings()
         .one_or_none()
@@ -275,6 +281,8 @@ def configure_panels(
         raise _not_found()
     if assignment["status"] != "DRAFT":
         raise HTTPException(status_code=400, detail="PANELS_ONLY_EDITABLE_IN_DRAFT")
+    if assignment["type"] != "FINAL_PROJECT":
+        raise HTTPException(status_code=400, detail="INVALID_STATE")
     class_ids = set(
         db.execute(
             text("SELECT class_id FROM assignment_classes WHERE assignment_id = :id"),
@@ -338,7 +346,7 @@ def publish_assignment(
 ) -> ApiResponse:
     row = (
         db.execute(
-            text("SELECT status FROM assignments WHERE id = :id FOR UPDATE"), {"id": assignment_id}
+            text("SELECT status, type FROM assignments WHERE id = :id FOR UPDATE"), {"id": assignment_id}
         )
         .mappings()
         .one_or_none()
@@ -347,6 +355,19 @@ def publish_assignment(
         raise _not_found()
     if row["status"] != "DRAFT":
         raise HTTPException(status_code=400, detail="ASSIGNMENT_NOT_DRAFT")
+    if row["type"] == "PROGRAMMING":
+        from pydantic import ValidationError
+
+        from app.schemas.teacher import ProgrammingProblemInput
+
+        try:
+            ProgrammingProblemInput.model_validate(get_programming_problem(db, assignment_id))
+        except ValidationError as exc:
+            raise HTTPException(424, "PROGRAMMING_PROBLEM_NOT_READY") from exc
+        db.execute(text("UPDATE assignments SET status='PUBLISHED',updated_at=now() WHERE id=:id"), {"id": assignment_id})
+        audit(db, teacher.id, "PUBLISH_ASSIGNMENT", "assignment", assignment_id)
+        db.commit()
+        return ApiResponse(data={"assignment_id": assignment_id, "status": "PUBLISHED"})
     validate_saved_panels(db, assignment_id)
     panel_counts = (
         db.execute(
@@ -386,7 +407,7 @@ def initialize_review_tasks(
     assignment = (
         db.execute(
             text("""
-        SELECT status, submit_deadline FROM assignments WHERE id = :id FOR UPDATE
+        SELECT status, type, submit_deadline FROM assignments WHERE id = :id FOR UPDATE
     """),
             {"id": assignment_id},
         )
@@ -395,6 +416,8 @@ def initialize_review_tasks(
     )
     if assignment is None:
         raise _not_found()
+    if assignment["type"] != "FINAL_PROJECT":
+        raise HTTPException(400, "FINAL_PROJECT_REQUIRED")
     if assignment["status"] not in {"PUBLISHED", "SUBMITTING", "REVIEWER_INITIALIZING"}:
         raise HTTPException(status_code=400, detail="INVALID_STATE")
     if assignment["submit_deadline"] and assignment["submit_deadline"] > datetime.now(UTC):
@@ -402,7 +425,7 @@ def initialize_review_tasks(
     pending_checks = db.execute(
         text("""
         SELECT count(*) FROM submissions s LEFT JOIN material_checks mc ON mc.submission_id = s.id
-        WHERE s.assignment_id = :id AND s.status <> 'DRAFT'
+        WHERE s.assignment_id = :id AND s.is_current AND s.status <> 'DRAFT'
           AND (mc.status = 'PENDING' OR mc.id IS NULL)
     """),
         {"id": assignment_id},
@@ -444,7 +467,7 @@ def initialize_review_tasks(
             SELECT s.id, s.anonymous_token FROM submissions s
             JOIN material_checks mc ON mc.submission_id = s.id
             WHERE s.assignment_id = :assignment_id AND s.class_id = :class_id
-              AND s.status = 'VALID' AND mc.status = 'VALID' ORDER BY s.id
+              AND s.is_current AND s.status = 'VALID' AND mc.status = 'VALID' ORDER BY s.id
         """),
                 {"assignment_id": assignment_id, "class_id": panel["target_class_id"]},
             )
@@ -523,7 +546,7 @@ def edit_draft(
     if before["updated_at"] != payload.expected_updated_at:
         raise HTTPException(409, "DRAFT_VERSION_CONFLICT")
     if db.execute(
-        text("SELECT EXISTS(SELECT 1 FROM submissions WHERE assignment_id = :id)"),
+        text("SELECT EXISTS(SELECT 1 FROM submissions WHERE assignment_id = :id) OR EXISTS(SELECT 1 FROM code_submissions WHERE assignment_id = :id)"),
         {"id": assignment_id},
     ).scalar_one():
         raise HTTPException(409, "ASSIGNMENT_HAS_SUBMISSIONS")
@@ -534,7 +557,7 @@ def edit_draft(
     )
     if classes != set(payload.class_ids):
         raise HTTPException(422, "CLASS_NOT_FOUND")
-    params = payload.model_dump(exclude={"class_ids", "rubric_items", "expected_updated_at"})
+    params = payload.model_dump(exclude={"class_ids", "rubric_items", "expected_updated_at", "programming_problem"})
     db.execute(
         text("""
         UPDATE assignments SET title=:title, type=:type, submit_deadline=:submit_deadline,
@@ -549,8 +572,9 @@ def edit_draft(
             {"id": assignment_id},
         ).scalars()
     )
-    if old_classes != classes:
+    if old_classes != classes or before["type"] != payload.type:
         db.execute(text("DELETE FROM review_panels WHERE assignment_id=:id"), {"id": assignment_id})
+    if old_classes != classes:
         db.execute(
             text("DELETE FROM assignment_classes WHERE assignment_id=:id"), {"id": assignment_id}
         )
@@ -574,6 +598,7 @@ def edit_draft(
         """),
             {"rubric_id": rubric_id, **item.model_dump()},
         )
+    save_programming_problem(db, assignment_id, payload.programming_problem)
     audit(
         db,
         teacher.id,
@@ -588,7 +613,7 @@ def edit_draft(
         data={
             "assignment_id": assignment_id,
             "status": "DRAFT",
-            "panels_reset": old_classes != classes,
+            "panels_reset": old_classes != classes or before["type"] != payload.type,
         }
     )
 
@@ -604,6 +629,7 @@ def delete_draft(
         raise HTTPException(409, "ASSIGNMENT_NOT_DRAFT")
     if db.execute(
         text("""SELECT EXISTS(SELECT 1 FROM submissions WHERE assignment_id=:id)
+                         OR EXISTS(SELECT 1 FROM code_submissions WHERE assignment_id=:id)
                          OR EXISTS(SELECT 1 FROM algorithm_runs WHERE assignment_id=:id)"""),
         {"id": assignment_id},
     ).scalar_one():
