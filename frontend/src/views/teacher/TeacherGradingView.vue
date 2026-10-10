@@ -12,6 +12,7 @@ import {
   createTeacherFinalReview,
 } from '../../api/teacher'
 import { errorMessages } from '../../api/errors'
+import { currentUser } from '../../api/auth'
 import SubmissionEvidence from '../../components/teacher/SubmissionEvidence.vue'
 
 const id = Number(useRoute().params.id),
@@ -36,6 +37,11 @@ const selected = computed(() =>
 )
 const published = computed(
   () => data.value?.assignment.status === 'PUBLISHED_RESULT',
+)
+const isInitialTeacher = computed(
+  () =>
+    history.value.find((g) => g.version === 1)?.entered_by ===
+    currentUser()?.id,
 )
 const eligible = computed(
   () =>
@@ -409,6 +415,12 @@ function publishAll() {
           >
             <h3>高风险作品复核最终分</h3>
             <p>该分会直接作为最终成绩，其他分数均完整保留审计。</p>
+            <p
+              v-if="!selected.locked_at || !isInitialTeacher"
+              class="notice notice-error"
+            >
+              先锁定教师初评，再由最初评分的同一位教师录入复核最终分。
+            </p>
             <label
               >复核最终分<input
                 v-model="form.finalScore"
@@ -429,7 +441,12 @@ function publishAll() {
                 required
               />
             </label>
-            <button class="button" :disabled="busy">锁定复核最终分</button>
+            <button
+              class="button"
+              :disabled="busy || !selected.locked_at || !isInitialTeacher"
+            >
+              锁定复核最终分
+            </button>
           </form>
           <section class="grade-history">
             <h3>评分历史</h3>

@@ -62,13 +62,18 @@ class AssignmentCreate(TeacherInput):
     class_ids: list[int] = Field(min_length=2, max_length=2)
     submit_deadline: AwareDatetime
     review_deadline: AwareDatetime
-    teacher_weight: Decimal = Field(ge=0, le=1, decimal_places=4)
-    designated_review_weight: Decimal = Field(ge=0, le=1, decimal_places=4)
+    teacher_weight: Decimal = Field(default=Decimal("0.60"), ge=0, le=1, decimal_places=4)
+    designated_review_weight: Decimal = Field(default=Decimal("0.40"), ge=0, le=1, decimal_places=4)
     rubric_items: list[RubricItemInput] = Field(min_length=1)
     programming_problem: ProgrammingProblemInput | None = None
 
     @model_validator(mode="after")
     def validate_assignment(self) -> AssignmentCreate:
+        if self.type == "FINAL_PROJECT" and (
+            self.teacher_weight,
+            self.designated_review_weight,
+        ) != (Decimal("0.60"), Decimal("0.40")):
+            raise ValueError("final project weights are fixed at 0.60/0.40")
         if self.type == "PROGRAMMING" and self.programming_problem is None:
             raise ValueError("programming problem and test cases are required")
         if self.type != "PROGRAMMING" and self.programming_problem is not None:

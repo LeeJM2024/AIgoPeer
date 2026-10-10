@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ReviewScoreInput(BaseModel):
@@ -12,11 +12,12 @@ class ReviewScoreInput(BaseModel):
 
 
 class ReviewSubmissionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     rubric_scores: list[ReviewScoreInput] = Field(min_length=1)
     comment: str = Field(min_length=1, max_length=10000)
     # Retained for the published API contract.  The server records its own
     # started_at when the reviewer first retrieves the anonymous package.
-    started_at: datetime
+    started_at: datetime | None = None
 
     @field_validator("comment")
     @classmethod

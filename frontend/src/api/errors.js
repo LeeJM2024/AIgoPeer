@@ -1,4 +1,8 @@
 export const errorMessages = {
+  INITIAL_GRADE_REQUIRED: '请先独立录入并锁定教师初评分，再进行最终复核。',
+  FINAL_REVIEW_REQUIRES_INITIAL_TEACHER: '最终复核须由最初录入教师评分的同一位教师完成。',
+  FIXED_WEIGHTS_REQUIRED: '期末作业必须采用固定60/40权重，请检查数据库升级。',
+  LOW_EVIDENCE_REFRESH_REQUIRED: '旧聚合尚未补齐低风险证据，请在作业管理页重新点击聚合。',
   TOPIC_ALREADY_CLAIMED:
     '此知识点已被学生认领，不能修改或删除。请新增另一个条目。',
   PROGRAMMING_PROBLEM_NOT_READY: '请先补齐题目说明、公开样例和隐藏测试用例。',

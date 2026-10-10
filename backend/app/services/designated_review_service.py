@@ -52,6 +52,7 @@ def _create_run(
                     "random_seed": 20261003,
                     "max_iterations": 100,
                     "convergence_tolerance": 0.000001,
+                    "low_evidence_policy": 2,
                 }
             ),
             "hash": input_hash,
@@ -161,14 +162,16 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
             )
         )
     observations = [ReviewerObservation(**entry) for entry in packed.values()]
-    expected_items = db.execute(
-        text(
-            "SELECT count(*) FROM rubric_items ri JOIN rubrics r ON r.id=ri.rubric_id WHERE r.assignment_id=:id"
-        ),
-        {"id": assignment_id},
-    ).scalar_one()
+    expected_items = set(
+        db.execute(
+            text(
+                "SELECT ri.id FROM rubric_items ri JOIN rubrics r ON r.id=ri.rubric_id WHERE r.assignment_id=:id"
+            ),
+            {"id": assignment_id},
+        ).scalars()
+    )
     if len(observations) != len(valid) * 5 or any(
-        len(o.rubric_scores) != expected_items for o in observations
+        {s.rubric_item_id for s in o.rubric_scores} != expected_items for o in observations
     ):
         run_id = _create_run(db, assignment_id, panel_id, _canonical_hash(observations), "FAILED")
         return {"algorithm_run_id": run_id, "status": "INVALID_REVIEW_SNAPSHOT"}
@@ -185,6 +188,33 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
         {"assignment": assignment_id, "panel": panel_id, "hash": input_hash},
     ).scalar_one_or_none()
     if existing is not None:
+        # Older adapters discarded LOW evidence. Reproduce it before reusing an unpublished run.
+        policy = db.execute(
+            text("SELECT parameters_json->>'low_evidence_policy' FROM algorithm_runs WHERE id=:id"),
+            {"id": existing},
+        ).scalar_one()
+        if policy != "2":
+            result = aggregate_panel_scores(request)
+            for finding in result.anomalies:
+                if finding.risk_level == "LOW" and finding.evidence.get("rules_triggered"):
+                    db.execute(
+                        text("""INSERT INTO anomaly_records(submission_id,review_task_id,algorithm_run_id,risk_level,risk_score,evidence_json)
+                      SELECT :submission,:task,:run,'LOW',:score,CAST(:evidence AS jsonb)
+                      WHERE NOT EXISTS(SELECT 1 FROM anomaly_records WHERE algorithm_run_id=:run AND review_task_id=:task)"""),
+                        {
+                            "submission": finding.submission_id,
+                            "task": finding.review_task_id,
+                            "run": existing,
+                            "score": finding.risk_score,
+                            "evidence": json.dumps(finding.evidence),
+                        },
+                    )
+            db.execute(
+                text(
+                    "UPDATE algorithm_runs SET parameters_json=jsonb_set(parameters_json,'{low_evidence_policy}','2') WHERE id=:id"
+                ),
+                {"id": existing},
+            )
         _advance_if_complete(db, assignment_id)
         return {"algorithm_run_id": existing, "status": "COMPLETED", "reused": True}
     if db.execute(
@@ -232,7 +262,7 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
             )
         high = {item.submission_id for item in result.results if item.risk_level == "HIGH"}
         for finding in result.anomalies:
-            if finding.risk_level != "LOW":
+            if finding.risk_level != "LOW" or finding.evidence.get("rules_triggered"):
                 db.execute(
                     text("""INSERT INTO anomaly_records(submission_id,review_task_id,algorithm_run_id,risk_level,risk_score,evidence_json)
                 VALUES(:submission,:task,:run,:level,:score,CAST(:evidence AS jsonb))"""),

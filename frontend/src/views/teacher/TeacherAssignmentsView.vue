@@ -191,9 +191,8 @@ async function submit() {
           : new Date(form.review_deadline).toISOString(),
       programming_problem:
         form.type === 'PROGRAMMING' ? form.programming_problem : null,
-      teacher_weight: form.type === 'PROGRAMMING' ? 1 : form.teacher_weight,
-      designated_review_weight:
-        form.type === 'PROGRAMMING' ? 0 : form.designated_review_weight,
+      teacher_weight: form.type === 'PROGRAMMING' ? 1 : 0.6,
+      designated_review_weight: form.type === 'PROGRAMMING' ? 0 : 0.4,
       rubric_items:
         form.type === 'PROGRAMMING'
           ? [{ name: '编程题', max_score: 100, sort_order: 1 }]
@@ -277,24 +276,10 @@ async function submit() {
               <small>{{ item.student_count }} 人</small></label
             >
           </fieldset>
-          <label v-if="form.type === 'FINAL_PROJECT'"
-            >教师评分权重<input
-              v-model.number="form.teacher_weight"
-              type="number"
-              min="0"
-              max="1"
-              step="0.05"
-              required
-          /></label>
-          <label v-if="form.type === 'FINAL_PROJECT'"
-            >跨班评审权重<input
-              v-model.number="form.designated_review_weight"
-              type="number"
-              min="0"
-              max="1"
-              step="0.05"
-              required
-          /></label>
+          <p v-if="form.type === 'FINAL_PROJECT'" class="span-2 muted">
+            普通作品固定采用教师独立初评分 60% + 五人聚合分
+            40%；高风险作品采用教师复核最终分。
+          </p>
         </div>
         <ProgrammingProblemEditor
           v-if="form.type === 'PROGRAMMING'"

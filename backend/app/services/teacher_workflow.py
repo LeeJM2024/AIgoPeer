@@ -138,6 +138,7 @@ def publication_readiness(db: Session, assignment_id: int):
                tg.id AS teacher_grade_id, tg.total_score AS teacher_score, tg.locked_at,
                ag.id AS aggregate_id, ag.total_score AS aggregate_score,
                ag.created_at AS aggregate_created_at,
+               ag.algorithm_name, ag.low_evidence_policy,
                s.final_review_status, fr.id AS final_review_id, fr.final_score AS final_review_score,
                (SELECT count(*) FROM anomaly_records ar
                 WHERE ar.submission_id = s.id AND ar.status = 'OPEN') AS open_anomalies,
@@ -152,7 +153,7 @@ def publication_readiness(db: Session, assignment_id: int):
             SELECT * FROM teacher_grades WHERE submission_id = s.id ORDER BY version DESC LIMIT 1
         ) tg ON true
         LEFT JOIN LATERAL (
-            SELECT a.* FROM designated_review_aggregates a
+            SELECT a.*,run.algorithm_name,run.parameters_json->>'low_evidence_policy' AS low_evidence_policy FROM designated_review_aggregates a
             JOIN review_panels p ON p.id = a.panel_id
             JOIN algorithm_runs run ON run.id = a.algorithm_run_id
             WHERE a.submission_id = s.id AND p.assignment_id = s.assignment_id
@@ -171,6 +172,11 @@ def publication_readiness(db: Session, assignment_id: int):
     blockers = []
     if assignment["status"] != "TEACHER_GRADING":
         blockers.append({"code": "INVALID_STATE"})
+    if assignment["type"] == "FINAL_PROJECT" and (
+        assignment["teacher_weight"],
+        assignment["designated_review_weight"],
+    ) != (Decimal("0.60"), Decimal("0.40")):
+        blockers.append({"code": "FIXED_WEIGHTS_REQUIRED"})
     if not rows:
         blockers.append({"code": "NO_VALID_SUBMISSIONS"})
     maximum = db.execute(
@@ -191,6 +197,8 @@ def publication_readiness(db: Session, assignment_id: int):
         blockers.append({"code": "OPEN_ANOMALIES_REQUIRE_REVIEW", "count": all_open})
     for row in rows:
         reasons = []
+        if row["algorithm_name"] == "panel_bayesian_robust" and row["low_evidence_policy"] != "2":
+            reasons.append("LOW_EVIDENCE_REFRESH_REQUIRED")
         if row["material_status"] != "VALID":
             reasons.append("MATERIAL_NOT_VALID")
         if row["teacher_grade_id"] is None or row["locked_at"] is None:
@@ -211,7 +219,11 @@ def publication_readiness(db: Session, assignment_id: int):
             reasons.append("AGGREGATE_STALE")
         if row["task_count"] != 5 or row["completed_tasks"] != 5:
             reasons.append("REVIEWS_INCOMPLETE")
-        if row["final_review_status"] == "ESCALATED_FOR_TEACHER_FINAL_REVIEW" or row["final_review_id"] is None and row["final_review_status"] == "FINAL_REVIEW_LOCKED":
+        if (
+            row["final_review_status"] == "ESCALATED_FOR_TEACHER_FINAL_REVIEW"
+            or row["final_review_id"] is None
+            and row["final_review_status"] == "FINAL_REVIEW_LOCKED"
+        ):
             reasons.append("TEACHER_FINAL_REVIEW_REQUIRED")
         for code in reasons:
             blockers.append(
