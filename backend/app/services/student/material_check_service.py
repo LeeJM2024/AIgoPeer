@@ -194,11 +194,11 @@ def run_material_check(submission_id: int) -> None:
         row = db.execute(
             text(
                 """
-                SELECT submission.manifest_json, submission_file.storage_key, user.name AS author_name,
-                       user.student_no
+                SELECT submission.manifest_json, submission_file.storage_key, author.name AS author_name,
+                       author.student_no
                 FROM submissions AS submission
                 JOIN submission_files AS submission_file ON submission_file.submission_id = submission.id
-                JOIN users AS user ON user.id = submission.author_id
+                JOIN users AS author ON author.id = submission.author_id
                 WHERE submission.id = :submission_id AND submission_file.file_kind = 'ZIP'
                 """
             ),
