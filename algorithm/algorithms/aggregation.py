@@ -100,6 +100,8 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
         risk=100*min(1,.45*hard+.35*max(posterior[x] for x in rows)+.1*short_duration+.05*short_comment+.05*low_entropy)
         level="HIGH" if rules else "MEDIUM" if risk>=50 or sum((short_duration,short_comment,low_entropy))>=2 else "LOW"
         if level=="HIGH": high_submissions.add(submission)
+        # LOW without any triggered signal is a normal observation, not an open case.
+        rules.extend(name for enabled,name in ((short_duration,'SHORT_DURATION'),(short_comment,'SHORT_COMMENT'),(low_entropy,'LOW_SCORE_DIVERSITY')) if enabled)
         anomalies.append(AnomalyFinding(review_task_id=task_id,submission_id=submission,reviewer_id=reviewer,risk_level=level,risk_score=round(risk,4),evidence={"risk_level":level,"risk_score":round(risk,4),"rules_triggered":rules,"rubric_evidence":evidence,"behavior_evidence":{"duration_seconds":rows[0][6],"comment_char_count":rows[0][7],"normalized_entropy":round(entropy,6)}}))
     results=[]
     for submission in submissions:

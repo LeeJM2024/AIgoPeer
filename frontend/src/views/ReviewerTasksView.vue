@@ -9,6 +9,7 @@ const error = ref('')
 const notice = ref('')
 const loading = ref(false)
 const saving = ref(false)
+const downloading = ref(false)
 const scores = reactive({})
 const comment = ref('')
 
@@ -38,32 +39,37 @@ async function loadTasks() {
 }
 
 function selectTask(task) {
+  if (saving.value || downloading.value) return
   selectedTaskId.value = task.task_id
   resetForm(task)
   notice.value = ''
 }
 
 async function downloadMaterial() {
-  if (!selectedTask.value) return
+  if (!selectedTask.value || downloading.value || saving.value) return
+  const task = selectedTask.value
+  downloading.value = true
   error.value = ''
   notice.value = ''
   try {
-    const blob = await downloadReviewMaterial(selectedTask.value.task_id)
+    const blob = await downloadReviewMaterial(task.task_id)
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `anonymous-review-${selectedTask.value.anonymous_token}.zip`
+    anchor.download = `anonymous-review-${task.anonymous_token}.zip`
     anchor.click()
-    URL.revokeObjectURL(url)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
     notice.value = '匿名材料已下载。请依据材料完成全部 Rubric 评分。'
     await loadTasks()
   } catch (err) {
     error.value = err.message
+  } finally {
+    downloading.value = false
   }
 }
 
 async function saveReview() {
-  if (!selectedTask.value) return
+  if (!selectedTask.value || saving.value || downloading.value) return
   saving.value = true
   error.value = ''
   notice.value = ''
@@ -73,8 +79,7 @@ async function saveReview() {
         rubric_item_id: item.id,
         score: Number(scores[item.id])
       })),
-      comment: comment.value,
-      started_at: selectedTask.value.started_at ?? new Date().toISOString()
+      comment: comment.value
     })
     notice.value = '评分已提交，之后不能修改。'
     selectedTaskId.value = null
@@ -108,6 +113,7 @@ onMounted(loadTasks)
           v-for="task in tasks"
           :key="task.task_id"
           type="button"
+          :disabled="saving || downloading"
           :class="{ selected: selectedTaskId === task.task_id }"
           @click="selectTask(task)"
         >
@@ -133,7 +139,7 @@ onMounted(loadTasks)
           <button
             class="button button-secondary"
             type="button"
-            :disabled="!selectedTask.materials.length"
+            :disabled="!selectedTask.materials.length || downloading || saving"
             @click="downloadMaterial"
           >
             下载匿名材料并开始评审
@@ -141,7 +147,7 @@ onMounted(loadTasks)
           <small v-if="!selectedTask.materials.length">材料仍在匿名化核验中，暂不可评审。</small>
         </section>
 
-        <fieldset :disabled="selectedTask.status !== 'IN_PROGRESS' || saving">
+        <fieldset :disabled="selectedTask.status !== 'IN_PROGRESS' || saving || downloading">
           <legend>Rubric 评分</legend>
           <label v-for="item in selectedTask.rubric_items" :key="item.id" class="score-row">
             <span><strong>{{ item.name }}</strong><small>{{ item.description || '按此维度评价材料质量。' }}</small></span>
@@ -151,7 +157,7 @@ onMounted(loadTasks)
         </fieldset>
         <div class="form-actions">
           <span v-if="selectedTask.status !== 'IN_PROGRESS'" class="muted">请先下载匿名材料，系统会记录评审开始时间。</span>
-          <button class="button" type="submit" :disabled="selectedTask.status !== 'IN_PROGRESS' || saving">{{ saving ? '正在提交…' : '提交评分' }}</button>
+          <button class="button" type="submit" :disabled="selectedTask.status !== 'IN_PROGRESS' || saving || downloading">{{ saving ? '正在提交…' : '提交评分' }}</button>
         </div>
       </form>
     </div>

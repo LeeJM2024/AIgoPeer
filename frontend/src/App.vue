@@ -2,19 +2,21 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { currentUser, logout } from './api/auth'
-import { getMyReviewTasks } from './api/reviewer'
+import { getReviewEligibility } from './api/reviewer'
 
 const route = useRoute()
 const router = useRouter()
 const user = computed(() => route.fullPath && currentUser())
 const isTeacher = computed(() => user.value?.role === 'TEACHER')
 const hasReviewTasks = ref(false)
+let eligibilityVersion = 0
 
 async function refreshReviewEntry() {
+  const version = ++eligibilityVersion
   hasReviewTasks.value = false
   if (user.value?.role !== 'STUDENT') return
-  try { hasReviewTasks.value = (await getMyReviewTasks()).length > 0 }
-  catch { hasReviewTasks.value = false }
+  try { const result = await getReviewEligibility(); if (version === eligibilityVersion) hasReviewTasks.value = result.has_tasks }
+  catch { if (version === eligibilityVersion) hasReviewTasks.value = false }
 }
 
 function signOut() {
