@@ -7,3 +7,8 @@ export const submitReview = (taskId, payload) =>
   apiFetch(`/api/reviewer/review-tasks/${taskId}/reviews`, {
     method: 'POST', body: JSON.stringify(payload)
   })
+
+export const downloadReviewMaterial = (taskId) =>
+  apiFetch(`/api/reviewer/review-tasks/${taskId}/materials/archive`, {
+    responseType: 'blob'
+  })

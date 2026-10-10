@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     ai_video_enabled: bool = False
     storage_dir: Path = Path("storage")
     max_project_archive_bytes: int = 500 * 1024 * 1024
+    ffmpeg_bin: str = "ffmpeg"
+    anonymization_command_timeout_seconds: int = 120
     redis_url: str = "redis://localhost:6379/0"
     judge_queue_name: str = "algopeer:judge:queue"
     judge_worker_concurrency: int = 1

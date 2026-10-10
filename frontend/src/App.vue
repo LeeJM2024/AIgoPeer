@@ -1,12 +1,21 @@
 <script setup>
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { currentUser, logout } from './api/auth'
+import { getMyReviewTasks } from './api/reviewer'
 
 const route = useRoute()
 const router = useRouter()
 const user = computed(() => route.fullPath && currentUser())
 const isTeacher = computed(() => user.value?.role === 'TEACHER')
+const hasReviewTasks = ref(false)
+
+async function refreshReviewEntry() {
+  hasReviewTasks.value = false
+  if (user.value?.role !== 'STUDENT') return
+  try { hasReviewTasks.value = (await getMyReviewTasks()).length > 0 }
+  catch { hasReviewTasks.value = false }
+}
 
 function signOut() {
   logout()
@@ -18,6 +27,8 @@ function sessionExpired() {
 onMounted(() =>
   window.addEventListener('algopeer-session-expired', sessionExpired),
 )
+onMounted(refreshReviewEntry)
+watch(() => route.fullPath, refreshReviewEntry)
 onUnmounted(() =>
   window.removeEventListener('algopeer-session-expired', sessionExpired),
 )
@@ -62,7 +73,7 @@ onUnmounted(() =>
       <RouterLink class="brand" to="/">AlgoPeer</RouterLink>
       <nav>
         <RouterLink to="/student">我的作业</RouterLink
-        ><RouterLink to="/reviewer/tasks">评审任务</RouterLink>
+        ><RouterLink v-if="hasReviewTasks" to="/reviewer/tasks">评审任务</RouterLink>
       </nav>
       <RouterLink v-if="!user" class="button button-small" to="/login"
         >登录</RouterLink
