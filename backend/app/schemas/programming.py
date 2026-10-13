@@ -53,3 +53,19 @@ class CodeSubmissionResult(BaseModel):
     executed_case_count: int
     passed_case_count: int
     compiler_output: str | None = None
+
+
+class CodeSubmissionHistoryItem(BaseModel):
+    id: int
+    version: int
+    language: str
+    status: str
+    submitted_at: datetime
+    is_current: bool
+
+
+class CodeSubmissionHistoryPage(BaseModel):
+    items: list[CodeSubmissionHistoryItem]
+    total: int
+    page: int
+    page_size: int

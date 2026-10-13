@@ -24,6 +24,9 @@
 3. 打开 `http://localhost:8000/docs` 查看后端 OpenAPI；健康检查为 `GET /api/health`。
 4. 前端开发时进入 `frontend` 后执行 `npm install` 和 `npm run dev`。
 
+前端组件回归测试：使用 Node.js 20+（CI 使用 Node.js 22），进入 `frontend` 执行
+`npm ci`、`npm test` 和 `npm run build`。组件测试无需数据库或浏览器服务。
+
 初始化演示数据：
 
 ```text

@@ -15,6 +15,8 @@ from pathlib import Path
 
 import docker
 from docker.errors import APIError, DockerException, NotFound
+from requests.exceptions import ConnectionError, ReadTimeout
+from urllib3.exceptions import ReadTimeoutError
 
 from app.core.config import settings
 
@@ -73,7 +75,20 @@ def _run_container(
             volumes={settings.judge_work_volume: {"bind": "/workspace", "mode": "rw"}},
             working_dir=f"/workspace/{work_name}",
         )
-        status = container.wait(timeout=timeout_seconds)
+        try:
+            status = container.wait(timeout=timeout_seconds)
+        except (ReadTimeout, ConnectionError) as exc:
+            # requests wraps a streamed Docker wait read timeout in ConnectionError.
+            read_timeout = isinstance(exc, ReadTimeout) or any(
+                isinstance(cause, ReadTimeoutError) for cause in exc.args
+            )
+            if not read_timeout:
+                raise JudgeInfrastructureError("Docker wait connection is unavailable") from exc
+            try:
+                container.kill()
+            except DockerException:
+                pass
+            raise TimeoutError from exc
         logs = container.logs(stdout=True, stderr=True).decode("utf-8", errors="replace")
         exit_code = int(status.get("StatusCode", 1))
         return ContainerProcessResult(
