@@ -17,6 +17,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.schemas.programming import (
     CodeSubmissionCreated,
+    CodeSubmissionHistoryItem,
+    CodeSubmissionHistoryPage,
     CodeSubmissionRequest,
     CodeSubmissionResult,
     ProgrammingProblemView,
@@ -168,3 +170,27 @@ def get_code_submission(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NOT_FOUND")
     return CodeSubmissionResult.model_validate(row)
+
+
+def list_code_submissions(
+    *, db: Session, assignment_id: int, student_id: int, page: int, page_size: int
+) -> CodeSubmissionHistoryPage:
+    if _student_programming_assignment(
+        db=db, assignment_id=assignment_id, student_id=student_id
+    ) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NOT_FOUND")
+    params = {"assignment_id": assignment_id, "student_id": student_id}
+    total = db.execute(
+        text("""SELECT count(*) FROM code_submissions
+        WHERE assignment_id=:assignment_id AND author_id=:student_id"""), params
+    ).scalar_one()
+    rows = db.execute(
+        text("""SELECT id,version,language,status,queued_at AS submitted_at,is_current
+        FROM code_submissions WHERE assignment_id=:assignment_id AND author_id=:student_id
+        ORDER BY version DESC,id DESC LIMIT :limit OFFSET :offset"""),
+        {**params, "limit": page_size, "offset": (page - 1) * page_size},
+    ).mappings().all()
+    return CodeSubmissionHistoryPage(
+        items=[CodeSubmissionHistoryItem.model_validate(row) for row in rows],
+        total=total, page=page, page_size=page_size,
+    )

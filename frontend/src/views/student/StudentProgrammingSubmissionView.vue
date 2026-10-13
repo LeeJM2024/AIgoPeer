@@ -4,6 +4,8 @@ import { RouterLink } from 'vue-router'
 
 import StudentCodeEditor from '../../components/student/StudentCodeEditor.vue'
 import ProgrammingSubmissionResult from '../../components/student/ProgrammingSubmissionResult.vue'
+import ProgrammingSubmissionHistory from '../../components/student/ProgrammingSubmissionHistory.vue'
+import { currentUser } from '../../api/auth'
 import { getCodeSubmission, getProgrammingProblem, submitCode } from '../../api/student/programmingSubmissions'
 
 const props = defineProps({ assignmentId: { type: String, required: true } })
@@ -18,13 +20,15 @@ const isRefreshing = ref(false)
 const pollingStopped = ref(false)
 const draftMessage = ref('')
 const error = ref('')
+const history = ref(null)
 let pollTimer = null
 let draftTimer = null
 let pollAttempts = 0
 let skipNextDraftSave = false
 
-const draftStorageKey = computed(() => `algopeer:programming-draft:${props.assignmentId}`)
-const submissionStorageKey = computed(() => `algopeer:programming-submission:${props.assignmentId}`)
+// Assignment-only legacy keys have no reliable owner and must not be restored.
+const studentId = currentUser()?.id
+const draftStorageKey = computed(() => studentId ? `algopeer:programming-draft:${studentId}:${props.assignmentId}` : null)
 const sourceByteSize = computed(() => new Blob([sourceCode.value]).size)
 const activeStatus = computed(() => ['QUEUED', 'RUNNING'].includes(submission.value?.status))
 
@@ -34,6 +38,7 @@ function stopPolling() {
 }
 
 function restoreDraft() {
+  if (!draftStorageKey.value) return
   try {
     const savedDraft = window.localStorage.getItem(draftStorageKey.value)
     if (savedDraft) {
@@ -46,6 +51,7 @@ function restoreDraft() {
 }
 
 function saveDraft() {
+  if (!draftStorageKey.value) return
   try {
     window.localStorage.setItem(draftStorageKey.value, sourceCode.value)
     draftMessage.value = '草稿已保存在当前浏览器。'
@@ -57,7 +63,7 @@ function saveDraft() {
 function clearDraft() {
   if (!window.confirm('确定清除本浏览器保存的草稿，并恢复示例代码吗？')) return
   try {
-    window.localStorage.removeItem(draftStorageKey.value)
+    if (draftStorageKey.value) window.localStorage.removeItem(draftStorageKey.value)
   } catch {
     // Clearing a draft should not prevent the student from continuing to edit.
   }
@@ -75,14 +81,6 @@ async function loadProblem() {
     error.value = err.message
   } finally {
     isLoading.value = false
-  }
-}
-
-function persistSubmissionId(submissionId) {
-  try {
-    window.localStorage.setItem(submissionStorageKey.value, String(submissionId))
-  } catch {
-    // A result can still be inspected during the current page session.
   }
 }
 
@@ -105,12 +103,13 @@ async function pollResult(submissionId) {
   }
 }
 
-async function restoreSubmission() {
-  try {
-    const submissionId = window.localStorage.getItem(submissionStorageKey.value)
-    if (submissionId) await pollResult(submissionId)
-  } catch {
-    // No previous submission is a normal first-visit state.
+function restoreCurrentSubmission(item) {
+  if (!submission.value || item.version > submission.value.version) {
+    stopPolling()
+    submission.value = item
+    pollAttempts = 0
+    pollingStopped.value = false
+    void pollResult(item.id)
   }
 }
 
@@ -130,11 +129,13 @@ async function handleSubmit() {
   try {
     const created = await submitCode(props.assignmentId, sourceCode.value)
     submission.value = { id: created.submission_id, version: created.version, status: created.status }
-    persistSubmissionId(created.submission_id)
     pollAttempts = 0
     void pollResult(created.submission_id)
+    void history.value?.refresh(true)
   } catch (err) {
-    error.value = err.message
+    error.value = err.code === 'INVALID_STATE'
+      ? '作业已截止或当前状态不允许提交，请返回作业列表核对。'
+      : err.message
   } finally {
     isSubmitting.value = false
   }
@@ -159,7 +160,7 @@ watch(sourceCode, () => {
 
 onMounted(async () => {
   restoreDraft()
-  await Promise.all([loadProblem(), restoreSubmission()])
+  await loadProblem()
 })
 
 onBeforeUnmount(() => {
@@ -210,10 +211,11 @@ onBeforeUnmount(() => {
           <ProgrammingSubmissionResult v-if="submission" :submission="submission" :polling-stopped="pollingStopped" :is-refreshing="isRefreshing" @refresh="refreshResult" />
         </article>
       </div>
+      <ProgrammingSubmissionHistory ref="history" :assignment-id="assignmentId" :latest-result="submission" @current="restoreCurrentSubmission" />
     </template>
   </section>
 </template>
 
 <style scoped>
-.programming-page { max-width: 1160px; margin: 0 auto; padding: 16px 0 24px; color: #e8f2ed; }.back-link { color: #b8e5c7; text-decoration: none; font-size: 14px; font-weight: 700; }.hero { margin: 28px 0 20px; }.hero h1 { margin: 6px 0; font-size: clamp(26px, 4vw, 34px); }.hero p { max-width: 720px; color: #c5dbcf; line-height: 1.65; }.eyebrow { margin: 0; color: #9fcbb0; font-size: 13px; font-weight: 700; }.problem-grid { display: grid; grid-template-columns: minmax(260px, .85fr) minmax(0, 1.15fr); gap: 18px; }.panel { padding: 22px; border: 1px solid #35634e; border-radius: 12px; background: #103d2e; box-shadow: 0 12px 28px #031c1433; }.panel h2, .panel h3 { margin: 0; }.problem-panel h3 { margin-top: 22px; font-size: 15px; }.panel p { color: #c5dbcf; line-height: 1.55; }.sample { margin-top: 14px; }.sample span { color: #a8d5b8; font-size: 13px; }.sample pre { overflow: auto; padding: 10px; border-radius: 6px; background: #09281e; color: #dcfce7; }.submission-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }.submission-heading p { margin: 5px 0 0; font-size: 13px; }.submission-heading span { padding: 4px 8px; border-radius: 999px; color: #c6f6d5; background: #1d6247; font-size: 12px; }.editor-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 18px 0 8px; }.hint { margin: 0; color: #9fcbb0; font-size: 13px; }.clear-button { flex: none; border: 1px solid #5f9777; border-radius: 7px; padding: 7px 10px; color: #d7f5e1; background: transparent; cursor: pointer; }.submit-button { margin-top: 16px; border: 0; border-radius: 7px; padding: 10px 15px; color: #06271b; background: #b8e5c7; font-weight: 700; cursor: pointer; }.submit-button:disabled { cursor: not-allowed; opacity: .65; }.error { color: #fecaca; } @media (max-width: 760px) { .programming-page { padding-top: 8px; }.problem-grid { grid-template-columns: 1fr; }.editor-tools { align-items: flex-start; flex-direction: column; } }
+.programming-page { max-width: 1160px; margin: 0 auto; padding: 16px 0 24px; color: #163b31; }.back-link { color: #17603f; text-decoration: none; font-size: 14px; font-weight: 700; }.hero { margin: 28px 0 20px; }.hero h1 { margin: 6px 0; font-size: clamp(26px, 4vw, 34px); }.hero p { max-width: 720px; color: #365f52; line-height: 1.65; }.eyebrow { margin: 0; color: #276749; font-size: 13px; font-weight: 700; }.problem-grid { display: grid; grid-template-columns: minmax(260px, .85fr) minmax(0, 1.15fr); gap: 18px; }.panel { color: #e8f2ed; padding: 22px; border: 1px solid #35634e; border-radius: 12px; background: #103d2e; box-shadow: 0 12px 28px #031c1433; }.panel h2, .panel h3 { margin: 0; }.problem-panel h3 { margin-top: 22px; font-size: 15px; }.panel p { color: #c5dbcf; line-height: 1.55; }.sample { margin-top: 14px; }.sample span { color: #a8d5b8; font-size: 13px; }.sample pre { overflow: auto; padding: 10px; border-radius: 6px; background: #09281e; color: #dcfce7; }.submission-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }.submission-heading p { margin: 5px 0 0; font-size: 13px; }.submission-heading span { padding: 4px 8px; border-radius: 999px; color: #c6f6d5; background: #1d6247; font-size: 12px; }.editor-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 18px 0 8px; }.hint { margin: 0; color: #9fcbb0; font-size: 13px; }.clear-button { flex: none; border: 1px solid #5f9777; border-radius: 7px; padding: 7px 10px; color: #d7f5e1; background: transparent; cursor: pointer; }.submit-button { margin-top: 16px; border: 0; border-radius: 7px; padding: 10px 15px; color: #06271b; background: #b8e5c7; font-weight: 700; cursor: pointer; }.submit-button:disabled { cursor: not-allowed; opacity: .65; }.error { color: #fecaca; } @media (max-width: 760px) { .programming-page { padding-top: 8px; }.problem-grid { grid-template-columns: 1fr; }.editor-tools { align-items: flex-start; flex-direction: column; } }
 </style>

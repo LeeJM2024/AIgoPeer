@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from redis.exceptions import RedisError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from app.services.student.programming_submission_service import (
     create_code_submission,
     get_code_submission,
     get_programming_problem,
+    list_code_submissions,
 )
 
 router = APIRouter()
@@ -63,6 +64,22 @@ def submit_code(
         db.commit()
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="JUDGE_UNAVAILABLE") from exc
     return ApiResponse(data=created.model_dump())
+
+
+@router.get("/student/assignments/{assignment_id}/code-submissions", response_model=ApiResponse)
+def read_code_submission_history(
+    assignment_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=50),
+) -> ApiResponse:
+    current_user = require_student(current_user)
+    history = list_code_submissions(
+        db=db, assignment_id=assignment_id, student_id=current_user.id,
+        page=page, page_size=page_size,
+    )
+    return ApiResponse(data=history.model_dump(mode="json"))
 
 
 @router.get("/code-submissions/{submission_id}", response_model=ApiResponse)

@@ -15,6 +15,9 @@ const assignmentTypeLabel = (type) => type === 'FINAL_PROJECT' ? '期末项目' 
 
 const formatDeadline = (value) => value ? dateFormatter.format(new Date(value)) : '未设置'
 
+const programmingClosed = (assignment) => assignment.type === 'PROGRAMMING' &&
+  assignment.submit_deadline && new Date(assignment.submit_deadline).getTime() <= Date.now()
+
 const submissionLabel = (assignment) => {
   if (assignment.type === 'PROGRAMMING') {
     if (!assignment.submission) return '未提交'
@@ -32,6 +35,7 @@ const codeStatusLabel = (status) => ({
 
 const actionLabel = (assignment) => {
   if (assignment.type === 'FINAL_PROJECT') return assignment.submission ? '查看并重新上传' : '认领并上传'
+  if (programmingClosed(assignment)) return '查看题目与结果'
   if (!assignment.submission) return '查看题目并提交'
   return ['QUEUED', 'RUNNING'].includes(assignment.submission.status) ? '查看判题进度' : '继续编写'
 }
@@ -45,7 +49,7 @@ const actionLabel = (assignment) => {
           <p class="assignment-card__eyebrow">{{ assignmentTypeLabel(assignment.type) }}</p>
           <h2>{{ assignment.title }}</h2>
         </div>
-        <span class="status-badge">{{ assignment.status === 'PUBLISHED' ? '进行中' : assignment.status }}</span>
+        <span class="status-badge">{{ programmingClosed(assignment) ? '已截止' : assignment.status === 'PUBLISHED' ? '进行中' : assignment.status }}</span>
       </div>
 
       <dl class="assignment-card__details">

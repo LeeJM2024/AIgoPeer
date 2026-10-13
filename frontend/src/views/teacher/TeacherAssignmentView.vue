@@ -47,6 +47,14 @@ async function load() {
   error.value = ''
   try {
     assignment.value = await getAssignment(id)
+    selections.value = Object.fromEntries(
+      assignment.value.classes.map((c) => {
+        const panel = assignment.value.panels.find(
+          (p) => p.reviewer_class_id === c.id,
+        )
+        return [c.id, panel?.reviewer_ids || []]
+      }),
+    )
     runs.value = await getAlgorithmRuns(id)
     if (assignment.value.type === 'PROGRAMMING')
       programmingResults.value = await getProgrammingResults(id)
@@ -57,14 +65,6 @@ async function load() {
       ]),
     )
     students.value = Object.fromEntries(entries)
-    selections.value = Object.fromEntries(
-      assignment.value.classes.map((c) => {
-        const panel = assignment.value.panels.find(
-          (p) => p.reviewer_class_id === c.id,
-        )
-        return [c.id, panel?.reviewer_ids || []]
-      }),
-    )
   } catch (err) {
     error.value = err.message
   }
@@ -214,7 +214,7 @@ async function run(action, label) {
         <h2>学生提交与测评结果</h2>
         <button
           class="button button-secondary button-small"
-          :disabled="busy"
+          :disabled="Boolean(busy)"
           @click="load"
         >
           刷新
@@ -332,7 +332,7 @@ async function run(action, label) {
         <button
           class="button"
           :disabled="
-            busy ||
+            Boolean(busy) ||
             assignment.classes.some((c) => selections[c.id]?.length !== 5)
           "
           @click="
@@ -372,7 +372,7 @@ async function run(action, label) {
         v-if="assignment.status === 'DRAFT'"
         class="button"
         :disabled="
-          busy ||
+          Boolean(busy) ||
           (assignment.type === 'FINAL_PROJECT' &&
             assignment.panels.length !== 2)
         "
@@ -387,7 +387,7 @@ async function run(action, label) {
           )
         "
         class="button"
-        :disabled="busy"
+        :disabled="Boolean(busy)"
         @click="run(() => initializeReviewTasks(id), 'initialize')"
       >
         初始化跨班评审任务
@@ -400,7 +400,7 @@ async function run(action, label) {
           )
         "
         class="button"
-        :disabled="busy"
+        :disabled="Boolean(busy)"
         @click="run(() => aggregateReviews(id), 'aggregate')"
       >
         {{ busy === 'aggregate' ? '正在聚合…' : '生成或重试评审聚合' }}
