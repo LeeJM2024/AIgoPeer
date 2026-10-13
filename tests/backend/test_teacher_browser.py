@@ -206,6 +206,7 @@ def test_real_teacher_workflow(browser_app, width, height, tmp_path, monkeypatch
             assert "91.00" in exported
             assert "84.80" in exported
             page.get_by_role("link", name="班级与学生", exact=True).click()
+            page.get_by_role("button", name="新建班级", exact=True).click()
             page.get_by_label("班级名称", exact=True).fill("浏览器导入测试班")
             page.get_by_label("学期", exact=True).fill("测试学期")
             page.get_by_role("button", name="保存班级", exact=True).click()
@@ -265,10 +266,11 @@ def test_real_teacher_workflow(browser_app, width, height, tmp_path, monkeypatch
             ).to_have_count(0)
             page.get_by_role("button", name="确认并发布作业", exact=True).click()
             expect(page.locator(".status-chip")).to_contain_text("已发布")
-            expect(page.get_by_role("button", name="初始化跨班评审任务")).to_have_count(
+            expect(page.get_by_role("button", name="分配跨班评审任务")).to_have_count(
                 0
             )
             page.get_by_role("link", name="知识点目录", exact=True).click()
+            page.get_by_role("button", name="新增知识点", exact=True).click()
             page.get_by_label("编号", exact=True).fill("WEB01")
             page.get_by_label("章节", exact=True).fill("动态规划")
             page.get_by_label("知识点名称", exact=True).fill("浏览器知识点")

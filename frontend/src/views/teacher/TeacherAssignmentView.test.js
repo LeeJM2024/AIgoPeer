@@ -26,7 +26,7 @@ const detail = () => ({
   ],
 })
 const counts = (wrapper) => wrapper.findAll('.selection-count').map((n) => n.text())
-const aggregateButton = (wrapper) => wrapper.findAll('button').find((b) => b.text().includes('评审聚合'))
+const aggregateButton = (wrapper) => wrapper.findAll('button').find((b) => b.text().includes('汇总评审结果'))
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -94,7 +94,7 @@ describe('教师作业详情', () => {
     expect(button.element.disabled).toBe(true)
     resolve({ panels: [{ status: 'COMPLETED' }, { status: 'COMPLETED' }] })
     await flushPromises()
-    expect(wrapper.get('[role=status]').text()).toContain('评分聚合已完成')
+    expect(wrapper.get('[role=status]').text()).toContain('评审结果汇总完成')
     expect(aggregateButton(wrapper).element.disabled).toBe(false)
     expect(counts(wrapper)).toEqual(['已选择 5 / 5 人', '已选择 5 / 5 人'])
     wrapper.unmount()

@@ -36,9 +36,9 @@ const stateName = {
   DRAFT: '草稿',
   PUBLISHED: '已发布',
   SUBMITTING: '提交中',
-  REVIEWER_INITIALIZING: '任务初始化',
+  REVIEWER_INITIALIZING: '分配评审',
   REVIEWER_GRADING: '跨班评审中',
-  AGGREGATING: '评分聚合中',
+  AGGREGATING: '汇总评审中',
   TEACHER_GRADING: '教师评分中',
   PUBLISHED_RESULT: '成绩已发布',
 }
@@ -96,8 +96,8 @@ async function run(action, label) {
               : result.panels.every((p) =>
                 ['COMPLETED', 'NO_VALID_SUBMISSIONS'].includes(p.status),
               )
-              ? '评分聚合已完成。请进入评分工作台。'
-              : '部分评审组尚未完成聚合，请查看下方运行记录；缺失评分需要先补齐。'
+              ? '评审结果汇总完成。请进入评分工作台。'
+              : '部分评审结果尚未汇总，请先补齐评分，再重新汇总。'
             : `评审任务已生成，共 ${result.panels.reduce((n, p) => n + p.task_count, 0)} 条。`
     await load()
   } catch (err) {
@@ -117,7 +117,7 @@ async function run(action, label) {
     <header class="page-heading">
       <div>
         <span class="status-chip">{{
-          stateName[assignment.status] || assignment.status
+          stateName[assignment.status] || '状态待更新'
         }}</span>
         <h1>{{ assignment.title }}</h1>
         <p v-if="assignment.type === 'FINAL_PROJECT'">
@@ -163,6 +163,65 @@ async function run(action, label) {
     <p v-if="notice" class="notice notice-success" role="status">
       {{ notice }}
     </p>
+    <section class="action-bar">
+      <div>
+        <h2>下一步</h2>
+        <p v-if="assignment.status === 'DRAFT'">
+          {{
+            assignment.type === 'PROGRAMMING'
+              ? '确认题目和测试用例后发布。'
+              : '确认评分标准和两个评审组后发布。'
+          }}发布后不可修改评分规则。
+        </p>
+        <p v-else-if="assignment.status === 'PUBLISHED'">
+          {{
+            assignment.type === 'PROGRAMMING'
+              ? '学生可以提交代码，测评结果将在下方显示。'
+              : '提交截止后可根据当前有效作业生成评审任务。'
+          }}
+        </p>
+        <p v-else>
+          {{ assignment.type === 'PROGRAMMING' ? '在下方查看学生提交与测评结果。' : ({ SUBMITTING: '提交截止后，可分配跨班评审任务。', REVIEWER_INITIALIZING: '正在分配评审任务，请稍后刷新。', REVIEWER_GRADING: '评审完成后，汇总结果并进入评分工作台。', AGGREGATING: '正在汇总评审结果，请稍后刷新。', TEACHER_GRADING: '完成教师评分与复核后，可发布成绩。', PUBLISHED_RESULT: '成绩已发布，可查看统计并导出。' }[assignment.status] || '请刷新查看作业进度。') }}
+        </p>
+      </div>
+      <button
+        v-if="assignment.status === 'DRAFT'"
+        class="button"
+        :disabled="
+          Boolean(busy) ||
+          (assignment.type === 'FINAL_PROJECT' &&
+            assignment.panels.length !== 2)
+        "
+        @click="run(() => publishAssignment(id), 'publish')"
+      >
+        确认并发布作业</button
+      ><button
+        v-else-if="
+          assignment.type === 'FINAL_PROJECT' &&
+          ['PUBLISHED', 'SUBMITTING', 'REVIEWER_INITIALIZING'].includes(
+            assignment.status,
+          )
+        "
+        class="button"
+        :disabled="Boolean(busy)"
+        @click="run(() => initializeReviewTasks(id), 'initialize')"
+      >
+        分配跨班评审任务
+      </button>
+      <button
+        v-if="
+          assignment.type === 'FINAL_PROJECT' &&
+          ['REVIEWER_GRADING', 'AGGREGATING', 'TEACHER_GRADING'].includes(
+            assignment.status,
+          )
+        "
+        class="button"
+        :disabled="Boolean(busy)"
+        @click="run(() => aggregateReviews(id), 'aggregate')"
+      >
+        {{ busy === 'aggregate' ? '正在汇总…' : '汇总评审结果' }}
+      </button>
+    </section>
     <section
       v-if="assignment.type === 'PROGRAMMING' && assignment.programming_problem"
       class="data-section"
@@ -206,7 +265,7 @@ async function run(action, label) {
         >返回作业列表编辑题目</RouterLink
       >
       <p v-else class="muted">
-        题目与测试用例已冻结。如需修改，请创建新作业，以保留原有测评依据。
+        题目已发布。如需修改，请新建作业。
       </p>
     </section>
     <section v-if="assignment.type === 'PROGRAMMING'" class="data-section">
@@ -225,7 +284,7 @@ async function run(action, label) {
         {{
           programmingResults.filter((r) => r.status === 'AC').length
         }}
-        人通过。服务故障不计为学生错误。
+        人通过。
       </p>
       <div v-if="programmingResults.length" class="table-wrap">
         <table>
@@ -245,7 +304,7 @@ async function run(action, label) {
               </td>
               <td>{{ row.class_name }}</td>
               <td>v{{ row.version }}</td>
-              <td>{{ judgeNames[row.status] || row.status }}</td>
+              <td>{{ judgeNames[row.status] || '状态待更新' }}</td>
               <td>
                 {{ row.passed_case_count }} / {{ row.executed_case_count }}
               </td>
@@ -261,7 +320,6 @@ async function run(action, label) {
       <div class="section-heading">
         <div>
           <h2>评分量表</h2>
-          <p>教师端和评审端都使用同一份 Rubric。</p>
         </div>
         <strong
           >{{
@@ -347,75 +405,16 @@ async function run(action, label) {
         </button>
       </div>
     </section>
-    <section class="action-bar">
-      <div>
-        <h2>流程控制</h2>
-        <p v-if="assignment.status === 'DRAFT'">
-          {{
-            assignment.type === 'PROGRAMMING'
-              ? '确认题目和公开、隐藏用例后发布，无需配置跨班评审组。'
-              : '确认 Rubric 和两个评审组后发布。'
-          }}发布后规则将被冻结。
-        </p>
-        <p v-else-if="assignment.status === 'PUBLISHED'">
-          {{
-            assignment.type === 'PROGRAMMING'
-              ? '学生可以提交 C++17 代码，由判题服务执行自动测评。'
-              : '提交截止后可根据当前有效作业生成评审任务。'
-          }}
-        </p>
-        <p v-else>
-          当前状态：{{ assignment.status }}。任务和成绩记录会保留审计痕迹。
-        </p>
-      </div>
-      <button
-        v-if="assignment.status === 'DRAFT'"
-        class="button"
-        :disabled="
-          Boolean(busy) ||
-          (assignment.type === 'FINAL_PROJECT' &&
-            assignment.panels.length !== 2)
-        "
-        @click="run(() => publishAssignment(id), 'publish')"
-      >
-        确认并发布作业</button
-      ><button
-        v-else-if="
-          assignment.type === 'FINAL_PROJECT' &&
-          ['PUBLISHED', 'SUBMITTING', 'REVIEWER_INITIALIZING'].includes(
-            assignment.status,
-          )
-        "
-        class="button"
-        :disabled="Boolean(busy)"
-        @click="run(() => initializeReviewTasks(id), 'initialize')"
-      >
-        初始化跨班评审任务
-      </button>
-      <button
-        v-if="
-          assignment.type === 'FINAL_PROJECT' &&
-          ['REVIEWER_GRADING', 'AGGREGATING', 'TEACHER_GRADING'].includes(
-            assignment.status,
-          )
-        "
-        class="button"
-        :disabled="Boolean(busy)"
-        @click="run(() => aggregateReviews(id), 'aggregate')"
-      >
-        {{ busy === 'aggregate' ? '正在聚合…' : '生成或重试评审聚合' }}
-      </button>
-    </section>
-    <section
+    <details
       v-if="assignment.type === 'FINAL_PROJECT' && runs.length"
       class="data-section"
     >
-      <h2>最近运行记录</h2>
+      <summary>处理记录</summary>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>运行</th>
+              <th>时间</th>
               <th>评审组</th>
               <th>类型</th>
               <th>状态</th>
@@ -424,20 +423,20 @@ async function run(action, label) {
           </thead>
           <tbody>
             <tr v-for="runItem in runs" :key="runItem.id">
-              <td>#{{ runItem.id }}</td>
-              <td>{{ runItem.panel_id }}</td>
+              <td>{{ runItem.started_at ? new Date(runItem.started_at).toLocaleString() : '—' }}</td>
+              <td>{{ assignment.classes.find(c => c.id === assignment.panels.find(p => p.id === runItem.panel_id)?.target_class_id)?.name || '跨班评审' }}</td>
               <td>
                 {{
                   runItem.algorithm_name === 'panel_bayesian_robust'
-                    ? '评分聚合'
-                    : '任务初始化'
+                    ? '评审汇总'
+                    : '分配评审'
                 }}
               </td>
               <td>
                 {{
                   { COMPLETED: '已完成', FAILED: '失败', RUNNING: '处理中' }[
                     runItem.status
-                  ] || runItem.status
+                  ] || '状态待更新'
                 }}
               </td>
               <td>
@@ -446,7 +445,7 @@ async function run(action, label) {
                   'INSUFFICIENT_REVIEWS'
                     ? '五人评分未齐，请补齐后重试'
                     : runItem.status === 'FAILED'
-                      ? '请联系维护人员检查本次运行后重试'
+                      ? '请稍后重试，或联系课程管理员'
                       : '—'
                 }}
               </td>
@@ -454,7 +453,7 @@ async function run(action, label) {
           </tbody>
         </table>
       </div>
-    </section>
+    </details>
   </div>
   <div v-else class="view-stack">
     <p v-if="error" class="notice notice-error">加载失败：{{ error }}</p>

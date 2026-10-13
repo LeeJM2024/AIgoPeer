@@ -104,10 +104,25 @@ The system is flat by default. Borders and tonal surface changes establish struc
 
 ### Do:
 - **Do** show status text alongside color.
-- **Do** place evidence, confidence, and model version beside AI suggestions.
+- **Do** explain review findings in plain Chinese, with score comparisons available on demand. Keep model versions, API configuration, and runtime diagnostics in administrator documentation.
 - **Do** preserve keyboard focus and 44px touch targets for primary controls.
 
 ### Don't:
 - **Don't** use decorative analytics dashboards, neon AI aesthetics, glassmorphism, or oversized vanity metrics.
 - **Don't** use colored side-stripe borders or gradient text.
 - **Don't** present automated analysis as a final grade.
+
+
+## Teacher workspace refinements (2026-10-13)
+
+- Teachers should see their assignments and next action first. Keep headings literal and remove marketing slogans and architecture explanations.
+- Use a white navigation rail, quiet teal selection states, small line icons, and a light gray workspace. Group content by task, not by implementation module.
+- The login page has one centered form. Class and topic creation forms open only when requested.
+- Show assignment search and status filters above the list. Put the next workflow action before detailed configuration.
+- Review evidence uses readable reasons and rubric score comparisons. Preserve zero values and distinguish missing values; do not display a fallback result as an available model estimate.
+- Keep service configuration and API credentials out of the teacher interface. Show availability and a useful route back to coursework.
+
+References used for task organization:
+- [Google Classroom: teacher work and review status](https://support.google.com/edu/classroom/answer/9157286?hl=zh-CN)
+- [Moodle: viewing and grading an assignment](https://docs.moodle.org/501/en/Viewing_an_assignment)
+- [Canvas: Gradebook](https://community.instructure.com/en/kb/articles/660826-how-do-i-use-the-gradebook)

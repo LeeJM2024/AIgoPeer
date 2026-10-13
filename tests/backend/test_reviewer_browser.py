@@ -5,8 +5,10 @@ from zipfile import ZipFile
 
 import pytest
 from sqlalchemy import text
+from test_teacher_browser import (
+    browser_app as browser_app,  # noqa: PLC0414 - register the shared fixture in this module
+)
 
-pytest_plugins = ["test_teacher_browser"]
 pytestmark = pytest.mark.skipif(
     os.environ.get("RUN_BROWSER_TESTS") != "1", reason="Opt-in browser integration"
 )

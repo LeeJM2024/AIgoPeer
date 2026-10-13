@@ -1,8 +1,9 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue'
+import ReviewEvidence from './ReviewEvidence.vue'
 import { getEvidence, getMaterial } from '../../api/teacher'
 
-const props = defineProps({ submissionId: { type: Number, required: true } })
+const props = defineProps({ submissionId: { type: Number, required: true }, rubricItems: { type: Array, default: () => [] } })
 const evidence = ref(null),
   error = ref(''),
   busy = ref(false),
@@ -70,8 +71,8 @@ async function open(item, download = false) {
 }
 </script>
 <template>
-  <section class="evidence-section" aria-label="原始材料与评分证据">
-    <h3>原始材料与评分证据</h3>
+  <section class="evidence-section" aria-label="作业材料与评审记录">
+    <h3>作业材料与评审记录</h3>
     <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
     <p v-if="!evidence && !error" role="status">正在读取材料清单…</p>
     <template v-if="evidence">
@@ -79,7 +80,7 @@ async function open(item, download = false) {
         提交版本 v{{ evidence.version }} ·
         {{
           evidence.is_current ? '当前版本' : '历史版本'
-        }}。材料完整性检查不代表内容质量已通过。
+        }}
       </p>
       <div class="toolbar">
         <button
@@ -130,7 +131,7 @@ async function open(item, download = false) {
         </li>
       </ul>
       <p v-else class="muted">
-        此提交没有材料清单。请核对上传记录；旧演示记录可能只有评分数据。
+        暂无可查看的材料，请核对学生的提交情况。
       </p>
       <div v-if="preview" class="material-preview">
         <div class="section-heading">
@@ -179,14 +180,14 @@ async function open(item, download = false) {
         <summary>异常证据与处理记录</summary>
         <article v-for="(item, index) in evidence.anomalies" :key="index">
           <p>
-            {{ item.risk_level }} ·
+            {{ { HIGH: '高风险', MEDIUM: '中风险', LOW: '低风险' }[item.risk_level] || '待核对' }} ·
             {{
               { OPEN: '待处理', CONFIRMED: '已确认', DISMISSED: '已驳回' }[
                 item.status
               ]
             }}
           </p>
-          <pre>{{ JSON.stringify(item.evidence_json, null, 2) }}</pre>
+          <ReviewEvidence :evidence="item.evidence_json" :rubric-items="rubricItems" />
           <p>{{ item.resolution_note }}</p>
         </article>
       </details>
@@ -205,8 +206,8 @@ async function open(item, download = false) {
 </template>
 <style scoped>
 .evidence-section {
-  border: 1px solid var(--border);
-  padding: 16px;
+  border-top: 1px solid var(--border);
+  padding: 20px 0;
   margin: 18px 0;
   border-radius: 8px;
   min-width: 0;
@@ -232,7 +233,7 @@ async function open(item, download = false) {
   flex-shrink: 0;
 }
 .material-preview {
-  background: var(--canvas);
+  background: var(--canvas, #f7f9fa);
   padding: 12px;
 }
 video {

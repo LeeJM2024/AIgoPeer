@@ -9,6 +9,7 @@ import {
   removeEnrollment,
 } from '../../api/teacher'
 
+const showForm = ref(false)
 const classes = ref([]),
   students = ref([]),
   selected = ref(null),
@@ -59,6 +60,7 @@ async function saveClass() {
     editingId.value = null
     classForm.name = ''
     classForm.course_term = ''
+    showForm.value = false
     notice.value = '班级已保存。'
   } catch (err) {
     error.value = err.message
@@ -67,11 +69,14 @@ async function saveClass() {
   }
 }
 function startEdit(item) {
+  showForm.value = true
+  window.scrollTo({ top: 0, behavior: 'auto' })
   editingId.value = item.id
   classForm.name = item.name
   classForm.course_term = item.course_term
 }
 function cancelEdit() {
+  showForm.value = false
   editingId.value = null
   classForm.name = ''
   classForm.course_term = ''
@@ -128,8 +133,8 @@ async function remove(student) {
     <header class="page-heading">
       <div>
         <h1>班级与学生</h1>
-        <p>维护课程名册，再从班级学生中配置跨班评审组。</p>
       </div>
+      <button class="button" :disabled="busy || loading" @click="cancelEdit(); showForm = true">新建班级</button>
     </header>
     <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
     <p v-if="notice" class="notice notice-success" role="status">
@@ -137,7 +142,7 @@ async function remove(student) {
     </p>
     <div v-if="loading" class="skeleton-page" aria-label="正在加载班级" />
     <template v-else>
-      <form class="data-section" @submit.prevent="saveClass">
+      <form v-if="showForm" class="data-section" @submit.prevent="saveClass">
         <h2>{{ editingId ? '编辑班级' : '新建班级' }}</h2>
         <fieldset class="form-grid bare-fieldset" :disabled="busy">
           <label
@@ -155,13 +160,12 @@ async function remove(student) {
         </fieldset>
         <div class="form-actions">
           <button
-            v-if="editingId"
             class="button button-secondary"
             type="button"
             :disabled="busy"
             @click="cancelEdit"
           >
-            取消编辑</button
+            取消</button
           ><button class="button" :disabled="busy">保存班级</button>
         </div>
       </form>
