@@ -5,12 +5,29 @@ from __future__ import annotations
 import hashlib
 import json
 
+from algorithm.algorithms.aggregation import (
+    ALGORITHM_NAME,
+    ALGORITHM_VERSION,
+    DEFAULT_PARAMETERS,
+    aggregate_panel_scores,
+)
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.schemas.review import AggregateRequest, ReviewerObservation, ScoreItem
 from app.services.teacher_workflow import lock_assignment
+
+
+def _run_parameters() -> dict:
+    return {
+        **DEFAULT_PARAMETERS,
+        "inference": "MAP-EM",
+        "low_evidence_policy": 2,
+        "profile_learning_policy": "distinct_works_and_converged",
+        "fallback_interval_policy": "uncalibrated_model_around_median",
+        "nonconvergence_policy": "fail_persistence",
+    }
 
 
 def _canonical_hash(observations: list[ReviewerObservation]) -> str:
@@ -41,20 +58,14 @@ def _create_run(
 ) -> int:
     return db.execute(
         text("""INSERT INTO algorithm_runs(assignment_id,panel_id,algorithm_name,version,
-        parameters_json,input_hash,status,finished_at) VALUES (:assignment,:panel,'panel_bayesian_robust','1.0.0',
+        parameters_json,input_hash,status,finished_at) VALUES (:assignment,:panel,:algorithm,:version,
         CAST(:parameters AS jsonb),:hash,CAST(:status AS text),CASE WHEN CAST(:status AS text)='RUNNING' THEN NULL ELSE now() END) RETURNING id"""),
         {
             "assignment": assignment_id,
             "panel": panel_id,
-            "parameters": json.dumps(
-                {
-                    "inference": "MAP-EM",
-                    "random_seed": 20261003,
-                    "max_iterations": 100,
-                    "convergence_tolerance": 0.000001,
-                    "low_evidence_policy": 2,
-                }
-            ),
+            "algorithm": ALGORITHM_NAME,
+            "version": ALGORITHM_VERSION,
+            "parameters": json.dumps(_run_parameters()),
             "hash": input_hash,
             "status": status,
         },
@@ -175,17 +186,23 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
     ):
         run_id = _create_run(db, assignment_id, panel_id, _canonical_hash(observations), "FAILED")
         return {"algorithm_run_id": run_id, "status": "INVALID_REVIEW_SNAPSHOT"}
-    from algorithm.algorithms.aggregation import aggregate_panel_scores
-
     request = AggregateRequest(
         assignment_id=assignment_id, panel_id=panel_id, observations=observations
     )
     input_hash = _canonical_hash(observations)
     existing = db.execute(
         text("""SELECT id FROM algorithm_runs WHERE assignment_id=:assignment AND panel_id=:panel
-        AND algorithm_name='panel_bayesian_robust' AND version='1.0.0' AND input_hash=:hash AND status='COMPLETED'
+        AND algorithm_name=:algorithm AND version=:version AND input_hash=:hash AND status='COMPLETED'
+        AND parameters_json-'low_evidence_policy'=CAST(:parameters AS jsonb)-'low_evidence_policy'
         ORDER BY id DESC LIMIT 1"""),
-        {"assignment": assignment_id, "panel": panel_id, "hash": input_hash},
+        {
+            "assignment": assignment_id,
+            "panel": panel_id,
+            "algorithm": ALGORITHM_NAME,
+            "version": ALGORITHM_VERSION,
+            "hash": input_hash,
+            "parameters": json.dumps(_run_parameters()),
+        },
     ).scalar_one_or_none()
     if existing is not None:
         # Older adapters discarded LOW evidence. Reproduce it before reusing an unpublished run.
@@ -226,6 +243,12 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
     savepoint = db.begin_nested()
     try:
         result = aggregate_panel_scores(request)
+        if result.fallback_reason == "MODEL_NOT_CONVERGED":
+            raise ValueError("MODEL_NOT_CONVERGED")
+        uncertainty = {
+            finding.submission_id: finding.evidence["uncertainty_evidence"]
+            for finding in result.anomalies
+        }
         for profile in result.reviewer_profiles:
             db.execute(
                 text("""INSERT INTO reviewer_profiles(assignment_id,panel_id,reviewer_id,bias_json,reliability,lazy_probability)
@@ -256,6 +279,7 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
                             "intervals": item.confidence_intervals,
                             "median_scores": item.median_scores,
                             "fallback_reason": item.fallback_reason,
+                            "uncertainty_evidence": uncertainty[item.submission_id],
                         }
                     ),
                 },
@@ -275,13 +299,52 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
                         "evidence": json.dumps(finding.evidence),
                     },
                 )
-        if high:
+        # A new policy result must not retain obsolete open cases from an older
+        # result for the identical snapshot. Preserve scores, evidence and runs;
+        # archive only superseded OPEN cases, with a system audit trail.
+        superseded = list(
             db.execute(
-                text(
-                    "UPDATE submissions SET final_review_status='ESCALATED_FOR_TEACHER_FINAL_REVIEW',updated_at=now() WHERE id=ANY(:ids)"
-                ),
-                {"ids": sorted(high)},
+                text("""UPDATE anomaly_records ar SET status='DISMISSED',
+              resolution_note=:note,resolved_at=now()
+            FROM algorithm_runs old
+            WHERE ar.algorithm_run_id=old.id AND old.assignment_id=:assignment
+              AND old.panel_id=:panel AND old.algorithm_name=:algorithm
+              AND old.input_hash=:hash AND old.status='COMPLETED'
+              AND old.id<>:run AND ar.status='OPEN' AND ar.submission_id=ANY(:ids)
+            RETURNING ar.id"""),
+                {
+                    "assignment": assignment_id,
+                    "panel": panel_id,
+                    "algorithm": ALGORITHM_NAME,
+                    "hash": input_hash,
+                    "run": run_id,
+                    "ids": valid,
+                    "note": f"已由算法 {ALGORITHM_VERSION} 运行 {run_id} 对同一评分快照重新检测，旧证据保留。",
+                },
+            ).scalars()
+        )
+        if superseded:
+            db.execute(
+                text("""INSERT INTO audit_logs(action,entity_type,entity_id,before_json,after_json)
+                VALUES ('SUPERSEDE_ALGORITHM_FINDINGS','algorithm_run',:run,
+                CAST(:before AS jsonb),CAST(:after AS jsonb))"""),
+                {
+                    "run": run_id,
+                    "before": json.dumps({"open_anomaly_ids": superseded}),
+                    "after": json.dumps(
+                        {"replacement_run_id": run_id, "version": ALGORITHM_VERSION}
+                    ),
+                },
             )
+        # Locked final reviews have already blocked reaggregation above.
+        db.execute(
+            text("""UPDATE submissions s SET final_review_status=CASE WHEN id=ANY(:high)
+              OR EXISTS(SELECT 1 FROM anomaly_records ar WHERE ar.submission_id=s.id
+                AND ar.status='OPEN' AND ar.risk_level='HIGH')
+              THEN 'ESCALATED_FOR_TEACHER_FINAL_REVIEW' ELSE 'NORMAL' END,updated_at=now()
+              WHERE id=ANY(:ids) AND final_review_status<>'FINAL_REVIEW_LOCKED'"""),
+            {"ids": valid, "high": sorted(high)},
+        )
         db.execute(
             text("UPDATE algorithm_runs SET status='COMPLETED',finished_at=now() WHERE id=:id"),
             {"id": run_id},
@@ -319,10 +382,10 @@ def _advance_if_complete(db: Session, assignment_id: int) -> None:
             WHERE ag.submission_id=s.id AND p.assignment_id=s.assignment_id
               AND p.target_class_id=s.class_id AND ar.panel_id=p.id
               AND ar.assignment_id=s.assignment_id AND ar.status='COMPLETED'
-              AND ar.algorithm_name='panel_bayesian_robust'
+              AND ar.algorithm_name=:algorithm
               AND ag.created_at >= (SELECT max(submitted_at) FROM review_tasks WHERE submission_id=s.id)
         )"""),
-        {"id": assignment_id},
+        {"id": assignment_id, "algorithm": ALGORITHM_NAME},
     ).scalar_one()
     if not missing:
         db.execute(

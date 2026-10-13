@@ -77,7 +77,9 @@ class ReviewerProfile(BaseModel):
     bias: float
     sigma: float
     anomaly_prior: float
-    learned: bool
+    learned: bool = Field(
+        description="True only when at least three distinct works qualify the reviewer and this run's EM converged and accepted the profile."
+    )
 
 
 class AnomalyFinding(BaseModel):
