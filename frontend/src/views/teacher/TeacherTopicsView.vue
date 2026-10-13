@@ -6,6 +6,7 @@ import {
   getTopics,
   updateTopic,
 } from '../../api/teacher'
+const showForm = ref(false)
 const rows = ref([]),
   error = ref(''),
   notice = ref(''),
@@ -22,6 +23,7 @@ async function load() {
   rows.value = await getTopics()
 }
 function reset() {
+  showForm.value = false
   editing.value = null
   Object.assign(form, {
     code: '',
@@ -32,6 +34,7 @@ function reset() {
   })
 }
 function edit(row) {
+  showForm.value = true
   editing.value = row.id
   Object.assign(form, {
     code: row.code,
@@ -88,15 +91,16 @@ onMounted(async () => {
       <div>
         <h1>知识点目录</h1>
         <p>
-          维护学生可认领的课程知识点。已被认领的条目保留原样，避免改变历史作业依据。
+          供学生选择的期末作业主题。
         </p>
       </div>
+      <button class="button" :disabled="busy" @click="reset(); showForm = true">新增知识点</button>
     </header>
     <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
     <p v-if="notice" class="notice notice-success" role="status">
       {{ notice }}
     </p>
-    <form class="editor-panel" @submit.prevent="save">
+    <form v-if="showForm" class="editor-panel" @submit.prevent="save">
       <h2>{{ editing ? '编辑知识点' : '新增知识点' }}</h2>
       <fieldset class="bare-fieldset form-grid" :disabled="busy">
         <label
@@ -124,13 +128,12 @@ onMounted(async () => {
       </fieldset>
       <div class="form-actions">
         <button
-          v-if="editing"
           type="button"
           class="button button-secondary"
           :disabled="busy"
           @click="reset"
         >
-          取消编辑</button
+          取消</button
         ><button class="button" :disabled="busy">
           {{ busy ? '正在保存…' : '保存知识点' }}
         </button>
@@ -159,7 +162,7 @@ onMounted(async () => {
               <td>{{ row.claim_count }}</td>
               <td>
                 <span v-if="row.claim_count" class="muted"
-                  >已认领，保留历史</span
+                  >已认领，不可修改</span
                 >
                 <div v-else class="toolbar">
                   <button

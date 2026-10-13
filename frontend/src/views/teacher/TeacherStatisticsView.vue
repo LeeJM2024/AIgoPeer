@@ -75,8 +75,7 @@ function exportCsv() {
       <div>
         <h1>成绩统计</h1>
         <p>
-          {{ data?.assignment.title }} ·
-          分数与统计均来自服务器保存的已发布结果。
+          {{ data?.assignment.title }}
         </p>
       </div>
       <button
@@ -123,7 +122,7 @@ function exportCsv() {
       </section>
       <section class="data-section">
         <h2>成绩分布</h2>
-        <p class="muted">按量表满分的比例分段，支持非100分量表。</p>
+        <p class="muted">满分 {{ data.maximum_score }} 分，按得分比例统计。</p>
         <div
           v-for="bin in data.distribution"
           :key="bin.label"
@@ -150,7 +149,7 @@ function exportCsv() {
                 <th>学号 / 姓名</th>
                 <th>班级</th>
                 <th>教师分</th>
-                <th>聚合分</th>
+                <th>评审综合分</th>
                 <th>最终分</th>
                 <th>采用版本</th>
                 <th>成绩来源</th>
@@ -172,7 +171,7 @@ function exportCsv() {
                   {{
                     g.final_grade_source === 'TEACHER_FINAL_REVIEW'
                       ? '教师复核最终分'
-                      : '按权重加权'
+                      : '教师评分与同伴评审'
                   }}<small v-if="g.final_review_reason">{{
                     g.final_review_reason
                   }}</small>

@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import ReviewEvidence from '../../components/teacher/ReviewEvidence.vue'
 import { RouterLink, useRoute } from 'vue-router'
 import {
   extendReviewDeadline,
@@ -87,8 +88,7 @@ async function extend() {
       <div>
         <h1>评审与异常复核</h1>
         <p>
-          {{ assignment?.title }} ·
-          异常只提供证据，复核结论不会自动调整教师评分。
+          {{ assignment?.title }}
         </p>
       </div>
       <RouterLink
@@ -136,7 +136,7 @@ async function extend() {
                     </ul>
                   </details>
                   <span v-else>{{
-                    row.task_count ? '全部完成' : '尚未初始化'
+                    row.task_count ? '全部完成' : '尚未分配任务'
                   }}</span>
                 </td>
               </tr>
@@ -162,7 +162,7 @@ async function extend() {
             assignment.review_deadline
               ? new Date(assignment.review_deadline).toLocaleString()
               : '未设置'
-          }}。请等待缺失评审完成，再查看聚合结果。
+          }}
         </p>
         <fieldset class="form-grid bare-fieldset" :disabled="busy">
           <label
@@ -184,7 +184,7 @@ async function extend() {
       </form>
       <section class="data-section">
         <div class="section-heading">
-          <h2>异常证据与人工结论</h2>
+          <h2>需要复核的评分</h2>
           <span
             >{{
               anomalies.filter((a) => a.status === 'OPEN').length
@@ -193,24 +193,22 @@ async function extend() {
           >
         </div>
         <p v-if="!anomalies.length" class="empty-state compact">
-          暂无异常记录。评审中的风险提示将在此展示。
+          暂无需要复核的评分。
         </p>
         <article v-for="item in anomalies" :key="item.id" class="anomaly-row">
           <div class="section-heading">
             <div>
               <h3>{{ item.author_name }} · {{ item.student_no }}</h3>
               <p>
-                匿名编号 {{ item.anonymous_token }} · 风险
-                {{ item.risk_level }} · {{ Number(item.risk_score).toFixed(2) }}
+                匿名编号 {{ item.anonymous_token }} ·
+                {{ { HIGH: '高风险', MEDIUM: '中风险', LOW: '低风险' }[item.risk_level] || '待核对' }}
               </p>
             </div>
             <span class="status-chip">{{ statusNames[item.status] }}</span>
           </div>
           <details>
-            <summary>查看算法原始证据</summary>
-            <pre class="evidence-json">{{
-              JSON.stringify(item.evidence_json, null, 2)
-            }}</pre>
+            <summary>查看复核依据</summary>
+            <ReviewEvidence :evidence="item.evidence_json" :rubric-items="assignment.rubric_items" />
           </details>
           <template
             v-if="

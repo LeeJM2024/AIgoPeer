@@ -1,6 +1,7 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import UiIcon from '../../components/UiIcon.vue'
 import ProgrammingProblemEditor from '../../components/teacher/ProgrammingProblemEditor.vue'
 import {
   createAssignment,
@@ -15,6 +16,22 @@ const editingId = ref(null)
 const notice = ref('')
 const assignments = ref([])
 const classes = ref([])
+const query = ref('')
+const filter = ref('all')
+const filters = [
+  { value: 'all', label: '全部作业' },
+  { value: 'ongoing', label: '进行中' },
+  { value: 'draft', label: '草稿' },
+  { value: 'published', label: '成绩已发布' },
+]
+const filteredAssignments = computed(() => assignments.value.filter((item) => {
+  const matchesText = item.title.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase())
+  const matchesStatus = filter.value === 'all' ||
+    (filter.value === 'draft' && item.status === 'DRAFT') ||
+    (filter.value === 'published' && item.status === 'PUBLISHED_RESULT') ||
+    (filter.value === 'ongoing' && !['DRAFT', 'PUBLISHED_RESULT'].includes(item.status))
+  return matchesText && matchesStatus
+}))
 const showForm = ref(false)
 const error = ref('')
 const busy = ref(false)
@@ -33,9 +50,9 @@ const stateName = {
   DRAFT: '草稿',
   PUBLISHED: '已发布',
   SUBMITTING: '提交中',
-  REVIEWER_INITIALIZING: '任务初始化',
+  REVIEWER_INITIALIZING: '分配评审中',
   REVIEWER_GRADING: '跨班评审中',
-  AGGREGATING: '评分聚合中',
+  AGGREGATING: '汇总评审中',
   TEACHER_GRADING: '教师评分中',
   PUBLISHED_RESULT: '成绩已发布',
 }
@@ -218,9 +235,7 @@ async function submit() {
   <div class="view-stack">
     <header class="page-heading">
       <div>
-        <p class="section-label">课程规则</p>
         <h1>作业与评分</h1>
-        <p>作业、Rubric、权重和跨班评审组是后续流程的唯一规则来源。</p>
       </div>
       <button class="button" :disabled="busy" @click="newDraft">
         {{ showForm ? '收起表单' : '新建作业' }}
@@ -235,7 +250,7 @@ async function submit() {
         <div>
           <h2>{{ editingId ? '编辑草稿' : '新建作业' }}</h2>
           <p>
-            期末作业需配置两组评审人；编程作业需填写完整题目和测试用例。保存后仍为草稿。
+            保存为草稿，发布前可以修改。
           </p>
         </div>
       </div>
@@ -277,8 +292,7 @@ async function submit() {
             >
           </fieldset>
           <p v-if="form.type === 'FINAL_PROJECT'" class="span-2 muted">
-            普通作品固定采用教师独立初评分 60% + 五人聚合分
-            40%；高风险作品采用教师复核最终分。
+            成绩由教师评分（60%）和同伴评审（40%）组成；高风险作业需教师最终复核。
           </p>
         </div>
         <ProgrammingProblemEditor
@@ -289,7 +303,7 @@ async function submit() {
           <div class="section-heading">
             <div>
               <h3>评分量表</h3>
-              <p>总分建议为 100；所有端均从这里动态读取。</p>
+              <p>各评分项合计建议为 100 分。</p>
             </div>
             <button
               class="button button-secondary button-small"
@@ -340,7 +354,13 @@ async function submit() {
       </div>
     </form>
     <section class="data-section">
-      <div v-if="assignments.length" class="table-wrap">
+      <div class="list-tools">
+        <div class="list-tabs" role="group" aria-label="筛选作业">
+          <button v-for="item in filters" :key="item.value" type="button" :aria-pressed="filter === item.value" @click="filter = item.value">{{ item.label }}</button>
+        </div>
+        <label class="search-field"><UiIcon name="search" /><input v-model="query" type="search" aria-label="搜索作业" placeholder="搜索作业名称" /></label>
+      </div>
+      <div v-if="filteredAssignments.length" class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -348,12 +368,11 @@ async function submit() {
               <th>状态</th>
               <th>提交</th>
               <th>评审任务</th>
-              <th>教师/评审权重</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in assignments" :key="item.id">
+            <tr v-for="item in filteredAssignments" :key="item.id">
               <td>
                 <strong>{{ item.title }}</strong
                 ><small>{{
@@ -362,16 +381,11 @@ async function submit() {
               </td>
               <td>
                 <span class="status-chip">{{
-                  stateName[item.status] || item.status
+                  stateName[item.status] || '状态待更新'
                 }}</span>
               </td>
               <td>{{ item.submission_count }}</td>
               <td>{{ item.review_task_count }}</td>
-              <td v-if="item.type === 'FINAL_PROJECT'">
-                {{ Number(item.teacher_weight) * 100 }}% /
-                {{ Number(item.designated_review_weight) * 100 }}%
-              </td>
-              <td v-else>自动测评</td>
               <td>
                 <div class="toolbar">
                   <RouterLink :to="`/teacher/assignments/${item.id}`"
@@ -398,8 +412,8 @@ async function submit() {
         </table>
       </div>
       <div v-else class="empty-state">
-        <h3>还没有作业</h3>
-        <p>创建后先配置两个方向的固定五人评审组。</p>
+        <h3>{{ assignments.length ? '没有找到符合条件的作业' : '还没有作业' }}</h3>
+        <p>{{ assignments.length ? '试试其他名称，或切换到全部作业。' : '点击“新建作业”开始。' }}</p>
       </div>
     </section>
   </div>

@@ -200,7 +200,7 @@ function publishAll() {
     <header class="page-heading">
       <div>
         <h1>评分工作台</h1>
-        <p>普通作品按固定权重发布；高风险作品采用教师锁定的复核最终分。</p>
+        <p>{{ data?.assignment.title }}</p>
       </div>
       <div class="toolbar">
         <RouterLink
@@ -236,11 +236,11 @@ function publishAll() {
               blocker.author_name
                 ? `${blocker.author_name}（${blocker.student_no}）：`
                 : ''
-            }}{{ errorMessages[blocker.code] || blocker.code }}
+            }}{{ errorMessages[blocker.code] || '请核对作业状态，刷新后重试。' }}
           </li>
         </ul>
         <p class="muted">
-          请先完成跨班评审并等待聚合结果，处理异常后再发布成绩。
+          完成上方事项后即可发布成绩。
         </p>
       </details>
       <div class="grading-layout">
@@ -281,11 +281,11 @@ function publishAll() {
             </div>
             <div class="score-comparison">
               <span
-                >同伴聚合<strong>{{
+                >评审综合分<strong>{{
                   selected.aggregate_score ?? '待生成'
                 }}</strong></span
               ><span
-                >教师当前分<strong>{{
+                >教师评分<strong>{{
                   selected.teacher_score ?? '—'
                 }}</strong></span
               >
@@ -298,7 +298,7 @@ function publishAll() {
             "
             class="notice notice-error"
           >
-            此作品存在高风险评分。请结合教师初评、同伴聚合和异常证据完成复核最终分。
+            这份作业需要最终复核。请核对材料和评审记录后填写复核最终分。
           </p>
           <p
             v-else-if="selected.final_review_status === 'FINAL_REVIEW_LOCKED'"
@@ -323,6 +323,7 @@ function publishAll() {
           <SubmissionEvidence
             :key="selected.id + ':' + selected.final_review_status"
             :submission-id="selected.id"
+            :rubric-items="data.rubric_items"
           />
           <p v-if="!eligible && !published" class="notice notice-error">
             当前提交或作业阶段不允许评分。
@@ -414,7 +415,7 @@ function publishAll() {
             @submit.prevent="saveFinalReview"
           >
             <h3>高风险作品复核最终分</h3>
-            <p>该分会直接作为最终成绩，其他分数均完整保留审计。</p>
+            <p>确认后，这个分数将作为最终成绩。</p>
             <p
               v-if="!selected.locked_at || !isInitialTeacher"
               class="notice notice-error"

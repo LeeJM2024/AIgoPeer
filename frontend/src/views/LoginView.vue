@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { login } from '../api/auth'
+import UiIcon from '../components/UiIcon.vue'
 
 const account = ref('')
 const password = ref('')
@@ -31,21 +32,15 @@ async function submit() {
 </script>
 
 <template>
-  <section class="auth-layout">
-    <div class="auth-context">
-      <p class="section-label">算法设计与分析</p>
-      <h1>把每一次评分，都变成有依据的决定。</h1>
-      <p>
-        统一管理作业发布、跨班五人评审、教师评分与成绩发布。原始数据、算法建议和教师决定始终清晰分开。
-      </p>
-    </div>
+  <section class="auth-layout" aria-labelledby="login-title">
+    <header class="login-brand"><span class="brand-mark"><UiIcon name="book" /></span><strong>AlgoPeer</strong></header>
     <form class="auth-form" @submit.prevent="submit">
-      <div>
-        <h2>登录 AlgoPeer</h2>
-        <p class="muted">使用课程账号进入对应工作台。</p>
+      <div class="login-heading">
+        <h1 id="login-title">登录</h1>
+        <p class="muted">算法设计与分析 · 课程工作台</p>
       </div>
       <label
-        >账号<input v-model="account" autocomplete="username" required
+        >账号<input v-model="account" autocomplete="username" placeholder="学号或教师账号" autocapitalize="none" spellcheck="false" required
       /></label>
       <label
         >密码<input
@@ -58,7 +53,8 @@ async function submit() {
       <button class="button" :disabled="busy">
         {{ busy ? '正在验证…' : '登录' }}
       </button>
-      <p class="form-help">如无法登录，请联系课程管理员核对账号。</p>
+      <p class="form-help">账号由课程管理员提供。</p>
     </form>
+    <p class="login-caption">教师与学生使用同一入口登录</p>
   </section>
 </template>
