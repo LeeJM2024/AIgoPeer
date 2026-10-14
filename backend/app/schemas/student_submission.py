@@ -119,6 +119,21 @@ class ProjectSubmissionView(BaseModel):
     submission: CurrentProjectSubmission | None
 
 
+class ProjectSubmissionHistoryItem(BaseModel):
+    id: int
+    version: int
+    submitted_at: datetime | None
+    is_current: bool
+    material_check_status: Literal["PENDING", "VALID", "INVALID", "RETURNED"] | None
+
+
+class ProjectSubmissionHistoryPage(BaseModel):
+    items: list[ProjectSubmissionHistoryItem]
+    total: int
+    page: int
+    page_size: int
+
+
 class MaterialCheckResult(BaseModel):
     status: Literal["PENDING", "VALID", "INVALID", "RETURNED"]
     missing_items: list[str]

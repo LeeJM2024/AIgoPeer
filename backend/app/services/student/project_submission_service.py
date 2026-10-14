@@ -16,6 +16,8 @@ from app.schemas.student_submission import (
     CurrentProjectSubmission,
     ProjectManifest,
     ProjectSubmissionCreated,
+    ProjectSubmissionHistoryItem,
+    ProjectSubmissionHistoryPage,
     ProjectSubmissionView,
 )
 
@@ -80,6 +82,29 @@ def get_project_submission_view(
         assignment_id=assignment_id, title=assignment["title"], status=assignment["status"],
         submit_deadline=assignment["submit_deadline"], can_submit=_can_submit(assignment),
         submission=CurrentProjectSubmission.model_validate(row) if row else None,
+    )
+
+
+def list_project_submissions(
+    *, db: Session, assignment_id: int, student_id: int, page: int, page_size: int
+) -> ProjectSubmissionHistoryPage:
+    _visible_project_assignment(db=db, assignment_id=assignment_id, student_id=student_id)
+    params = {"assignment_id": assignment_id, "student_id": student_id}
+    total = db.execute(
+        text("""SELECT count(*) FROM submissions
+        WHERE assignment_id=:assignment_id AND author_id=:student_id"""), params,
+    ).scalar_one()
+    rows = db.execute(
+        text("""SELECT s.id,s.version,s.submitted_at,s.is_current,
+        m.status AS material_check_status FROM submissions s
+        LEFT JOIN material_checks m ON m.submission_id=s.id
+        WHERE s.assignment_id=:assignment_id AND s.author_id=:student_id
+        ORDER BY s.version DESC,s.id DESC LIMIT :limit OFFSET :offset"""),
+        {**params, "limit": page_size, "offset": (page - 1) * page_size},
+    ).mappings().all()
+    return ProjectSubmissionHistoryPage(
+        items=[ProjectSubmissionHistoryItem.model_validate(row) for row in rows],
+        total=total, page=page, page_size=page_size,
     )
 
 

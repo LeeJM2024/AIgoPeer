@@ -24,3 +24,6 @@ export const getMaterialCheck = (submissionId) =>
 
 export const getCurrentProjectSubmission = (assignmentId) =>
   apiFetch(`/api/student/assignments/${assignmentId}/project-submission`)
+
+export const getProjectSubmissionHistory = (assignmentId, page = 1, pageSize = 5) =>
+  apiFetch(`/api/student/assignments/${assignmentId}/project-submissions?page=${page}&page_size=${pageSize}`)
