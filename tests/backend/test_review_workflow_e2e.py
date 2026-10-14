@@ -12,7 +12,9 @@ from __future__ import annotations
 import io
 import json
 import shutil
+import time
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from zipfile import ZipFile
 
 from sqlalchemy import text
@@ -168,6 +170,12 @@ def test_cross_class_anonymous_review_workflow_e2e(course, monkeypatch, tmp_path
     )
     monkeypatch.setattr(review_anonymization_service, "_safe_video_file", shutil.copyfile)
 
+    submit_deadline = datetime.now(UTC) + timedelta(seconds=10)
+    with c["engine"].begin() as connection:
+        connection.execute(
+            text("UPDATE assignments SET submit_deadline=:deadline WHERE id=:a"),
+            {"a": c["id"], "deadline": submit_deadline},
+        )
     published_assignment = client.post(f"/api/teacher/assignments/{c['id']}/publish")
     assert published_assignment.status_code == 200, published_assignment.text
     topics = [(_create_topic(client, code), code) for code in ("91", "92", "93", "94", "95", "96")]
@@ -189,6 +197,8 @@ def test_cross_class_anonymous_review_workflow_e2e(course, monkeypatch, tmp_path
                 )
             )
     submissions = [submission for group in submissions_by_class for submission in group]
+
+    time.sleep(max(0, (submit_deadline - datetime.now(UTC)).total_seconds()) + .03)
 
     initialized = client.post(f"/api/teacher/assignments/{c['id']}/initialize-review-tasks")
     assert initialized.status_code == 200, initialized.text

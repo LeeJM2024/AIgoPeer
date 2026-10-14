@@ -12,7 +12,12 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.schemas.student_submission import ProjectManifest, ProjectSubmissionCreated
+from app.schemas.student_submission import (
+    CurrentProjectSubmission,
+    ProjectManifest,
+    ProjectSubmissionCreated,
+    ProjectSubmissionView,
+)
 
 ARCHIVE_CHUNK_SIZE = 1024 * 1024
 
@@ -28,26 +33,62 @@ class UploadContext:
     topic_code: str
 
 
-def get_upload_context(*, db: Session, assignment_id: int, student_id: int) -> UploadContext:
+def _visible_project_assignment(*, db: Session, assignment_id: int, student_id: int):
     assignment = db.execute(
         text(
             """
-            SELECT assignment_class.class_id
+            SELECT assignment_class.class_id, assignment.title, assignment.status,
+                   assignment.submit_deadline, clock_timestamp() AS server_now
             FROM assignments AS assignment
             JOIN assignment_classes AS assignment_class ON assignment_class.assignment_id = assignment.id
             JOIN enrollments AS enrollment ON enrollment.class_id = assignment_class.class_id
             WHERE assignment.id = :assignment_id
               AND assignment.type = 'FINAL_PROJECT'
-              AND assignment.status IN ('PUBLISHED', 'SUBMITTING')
+              AND assignment.status <> 'DRAFT'
               AND enrollment.user_id = :student_id
             ORDER BY assignment_class.class_id
             LIMIT 1
             """
         ),
         {"assignment_id": assignment_id, "student_id": student_id},
-    ).scalar_one_or_none()
+    ).mappings().one_or_none()
     if assignment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NOT_FOUND")
+    return assignment
+
+
+def _can_submit(assignment) -> bool:
+    return assignment["status"] in {"PUBLISHED", "SUBMITTING"} and (
+        assignment["submit_deadline"] is None
+        or assignment["submit_deadline"] > assignment["server_now"]
+    )
+
+
+def get_project_submission_view(
+    *, db: Session, assignment_id: int, student_id: int
+) -> ProjectSubmissionView:
+    assignment = _visible_project_assignment(
+        db=db, assignment_id=assignment_id, student_id=student_id
+    )
+    row = db.execute(
+        text("""SELECT id, version, status, submitted_at FROM submissions
+        WHERE assignment_id=:assignment_id AND author_id=:student_id AND is_current=TRUE
+        ORDER BY version DESC, id DESC LIMIT 1"""),
+        {"assignment_id": assignment_id, "student_id": student_id},
+    ).mappings().one_or_none()
+    return ProjectSubmissionView(
+        assignment_id=assignment_id, title=assignment["title"], status=assignment["status"],
+        submit_deadline=assignment["submit_deadline"], can_submit=_can_submit(assignment),
+        submission=CurrentProjectSubmission.model_validate(row) if row else None,
+    )
+
+
+def get_upload_context(*, db: Session, assignment_id: int, student_id: int) -> UploadContext:
+    assignment = _visible_project_assignment(
+        db=db, assignment_id=assignment_id, student_id=student_id
+    )
+    if not _can_submit(assignment):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STATE")
 
     claim = db.execute(
         text(
@@ -66,7 +107,7 @@ def get_upload_context(*, db: Session, assignment_id: int, student_id: int) -> U
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="TOPIC_CLAIM_REQUIRED")
     return UploadContext(
         assignment_id=assignment_id,
-        class_id=int(assignment),
+        class_id=int(assignment["class_id"]),
         student_id=student_id,
         claim_id=int(claim["id"]),
         student_no=str(claim["student_no"]),
@@ -157,10 +198,12 @@ def create_pending_submission(
                 INSERT INTO submissions(
                   assignment_id, author_id, class_id, status, anonymous_token, submitted_at,
                   topic_claim_id, version, is_current, manifest_json
-                ) VALUES (
-                  :assignment_id, :student_id, :class_id, 'PENDING', :anonymous_token, now(),
+                ) SELECT
+                  :assignment_id, :student_id, :class_id, 'PENDING', :anonymous_token, clock_timestamp(),
                   :topic_claim_id, :version, TRUE, CAST(:manifest_json AS jsonb)
-                )
+                FROM assignments
+                WHERE id=:assignment_id AND status IN ('PUBLISHED', 'SUBMITTING')
+                  AND (submit_deadline IS NULL OR submit_deadline > clock_timestamp())
                 RETURNING id
                 """
             ),
@@ -173,7 +216,9 @@ def create_pending_submission(
                 "version": version,
                 "manifest_json": json.dumps(manifest.model_dump(mode="json")),
             },
-        ).scalar_one()
+        ).scalar_one_or_none()
+        if submission_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STATE")
         db.execute(
             text(
                 """
@@ -197,6 +242,9 @@ def create_pending_submission(
             {"submission_id": submission_id},
         )
         db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="CONFLICT") from exc

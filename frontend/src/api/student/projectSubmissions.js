@@ -21,3 +21,6 @@ export const submitProject = (assignmentId, zipFile, manifest) => {
 
 export const getMaterialCheck = (submissionId) =>
   apiFetch(`/api/submissions/${submissionId}/material-check`)
+
+export const getCurrentProjectSubmission = (assignmentId) =>
+  apiFetch(`/api/student/assignments/${assignmentId}/project-submission`)
