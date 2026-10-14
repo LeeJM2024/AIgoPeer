@@ -103,6 +103,22 @@ class ProjectSubmissionCreated(BaseModel):
     material_check_status: Literal["PENDING"]
 
 
+class CurrentProjectSubmission(BaseModel):
+    id: int
+    version: int
+    status: str
+    submitted_at: datetime | None
+
+
+class ProjectSubmissionView(BaseModel):
+    assignment_id: int
+    title: str
+    status: str
+    submit_deadline: datetime | None
+    can_submit: bool
+    submission: CurrentProjectSubmission | None
+
+
 class MaterialCheckResult(BaseModel):
     status: Literal["PENDING", "VALID", "INVALID", "RETURNED"]
     missing_items: list[str]

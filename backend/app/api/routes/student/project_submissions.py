@@ -24,6 +24,7 @@ from app.schemas.student_submission import MaterialCheckResult, ProjectManifest
 from app.services.student.material_check_service import get_material_check, run_material_check
 from app.services.student.project_submission_service import (
     create_pending_submission,
+    get_project_submission_view,
     get_upload_context,
     new_storage_path,
     store_archive,
@@ -37,6 +38,19 @@ def require_student(current_user: CurrentUser) -> CurrentUser:
     if current_user.system_role != "STUDENT":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="FORBIDDEN")
     return current_user
+
+
+@router.get("/student/assignments/{assignment_id}/project-submission", response_model=ApiResponse)
+def read_current_project_submission(
+    assignment_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> ApiResponse:
+    current_user = require_student(current_user)
+    view = get_project_submission_view(
+        db=db, assignment_id=assignment_id, student_id=current_user.id
+    )
+    return ApiResponse(data=view.model_dump(mode="json"))
 
 
 @router.post("/assignments/{assignment_id}/project-submissions", response_model=ApiResponse)
