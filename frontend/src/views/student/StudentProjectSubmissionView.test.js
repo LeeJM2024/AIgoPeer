@@ -8,6 +8,7 @@ vi.mock('vue-router', () => ({ RouterLink: { template: '<a><slot /></a>' } }))
 vi.mock('../../api/student/projectSubmissions', () => ({
   getAssignmentTopics: vi.fn(), getCurrentProjectSubmission: vi.fn(),
   getMaterialCheck: vi.fn(), claimTopic: vi.fn(), submitProject: vi.fn(),
+  getProjectSubmissionHistory: vi.fn(),
 }))
 const wrappers = []
 const current = { id: 71, version: 1, status: 'VALID', submitted_at: '2026-10-14T05:00:00Z' }
@@ -38,6 +39,7 @@ beforeEach(() => {
   api.getAssignmentTopics.mockResolvedValue({ topics: [], claim: { id: 1, topic: { code: '89', name: '动态规划' } } })
   api.getCurrentProjectSubmission.mockResolvedValue(view())
   api.getMaterialCheck.mockResolvedValue(check())
+  api.getProjectSubmissionHistory.mockResolvedValue({ items: [], total: 0, page: 1 })
 })
 afterEach(() => {
   wrappers.splice(0).forEach((w) => w.unmount())
@@ -152,4 +154,33 @@ it('页面离开后停止后台轮询', async () => {
   wrappers.splice(wrappers.indexOf(w), 1)
   await vi.advanceTimersByTimeAsync(5000)
   expect(api.getMaterialCheck).toHaveBeenCalledTimes(1)
+})
+
+it('查看旧版不替换当前版本或表单，当前检查继续完成', async () => {
+  api.getCurrentProjectSubmission.mockResolvedValue(view({ ...current, version: 2, status: 'PENDING' }))
+  api.getProjectSubmissionHistory.mockResolvedValue({ items: [
+    { id: 71, version: 2, is_current: true, material_check_status: 'PENDING', submitted_at: current.submitted_at },
+    { id: 70, version: 1, is_current: false, material_check_status: 'INVALID', submitted_at: current.submitted_at },
+  ], total: 2, page: 1 })
+  let polls = 0
+  api.getMaterialCheck.mockImplementation(async (id) => id === 70 ? check('INVALID', ['VIDEO'])
+    : check(++polls === 1 ? 'PENDING' : 'VALID'))
+  const w = await open()
+  await w.get('input[placeholder="slides/lesson.pptx"]').setValue('CURRENT_SLIDES.pptx')
+  await w.get('button[aria-label="查看第 1 版材料检查"]').trigger('click')
+  await flushPromises()
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(w.get('.check-result').text()).toContain('当前提交：第 2 版')
+  expect(w.get('.check-result').text()).toContain('材料检查结果：VALID')
+  expect(w.get('.history-detail').text()).toContain('缺失项：VIDEO')
+  expect(w.get('input[placeholder="slides/lesson.pptx"]').element.value).toBe('CURRENT_SLIDES.pptx')
+  expect(api.getMaterialCheck.mock.calls.filter(([id]) => id === 70)).toHaveLength(1)
+})
+
+it('新上传触发历史第一页刷新', async () => {
+  api.submitProject.mockResolvedValue({ submission_id: 72, version: 2, material_check_status: 'PENDING' })
+  const w = await open()
+  await upload(w)
+  expect(api.getProjectSubmissionHistory).toHaveBeenCalledTimes(2)
+  expect(api.getProjectSubmissionHistory).toHaveBeenLastCalledWith(1, 1, 5)
 })

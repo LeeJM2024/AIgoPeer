@@ -10,6 +10,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Query,
     UploadFile,
     status,
 )
@@ -26,6 +27,7 @@ from app.services.student.project_submission_service import (
     create_pending_submission,
     get_project_submission_view,
     get_upload_context,
+    list_project_submissions,
     new_storage_path,
     store_archive,
     validate_archive_filename,
@@ -51,6 +53,22 @@ def read_current_project_submission(
         db=db, assignment_id=assignment_id, student_id=current_user.id
     )
     return ApiResponse(data=view.model_dump(mode="json"))
+
+
+@router.get("/student/assignments/{assignment_id}/project-submissions", response_model=ApiResponse)
+def read_project_submission_history(
+    assignment_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=50),
+) -> ApiResponse:
+    current_user = require_student(current_user)
+    history = list_project_submissions(
+        db=db, assignment_id=assignment_id, student_id=current_user.id,
+        page=page, page_size=page_size,
+    )
+    return ApiResponse(data=history.model_dump(mode="json"))
 
 
 @router.post("/assignments/{assignment_id}/project-submissions", response_model=ApiResponse)

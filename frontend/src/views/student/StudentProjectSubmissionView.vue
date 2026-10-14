@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
+import ProjectSubmissionHistory from '../../components/student/ProjectSubmissionHistory.vue'
 
 import {
   claimTopic,
@@ -303,6 +304,7 @@ onBeforeUnmount(() => {
     </section>
     <p v-else-if="assignment && !isLoading" class="hint">当前没有已提交的作业包。</p>
     <p v-if="checkError && !currentSubmission" class="error" role="alert">提交状态加载失败：{{ checkError }}，请刷新重试。</p>
+    <ProjectSubmissionHistory v-if="assignment" :key="assignmentId" :assignment-id="assignmentId" :latest-submission="currentSubmission" :latest-check="materialCheck" />
   </section>
 </template>
 
