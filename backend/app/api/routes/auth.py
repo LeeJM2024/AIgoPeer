@@ -8,12 +8,38 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import CurrentUser, get_current_user, hash_password, verify_password
 from app.db.session import get_db
-from app.schemas.auth import LoginInput
+from app.schemas.auth import LoginInput, RegisterInput
 from app.schemas.common import ApiResponse
-from app.services.login_throttle import admit_login
+from app.services.login_throttle import admit_login, admit_registration
 
 router = APIRouter()
 _DUMMY_HASH = hash_password("dummy-account-timing-only")
+
+
+@router.post("/register", response_model=ApiResponse, status_code=201)
+def register(
+    payload: RegisterInput, request: Request, db: Session = Depends(get_db)
+) -> ApiResponse:
+    admit_registration(db, payload.student_no, request.client.host if request.client else "unknown")
+    user = (
+        db.execute(
+            text("""INSERT INTO users(student_no, name, password_hash, system_role)
+                    VALUES (:student_no, :name, :password_hash, 'STUDENT')
+                    ON CONFLICT (student_no) DO NOTHING RETURNING id, name"""),
+            {
+                "student_no": payload.student_no,
+                "name": payload.name,
+                "password_hash": hash_password(payload.password),
+            },
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if user is None:
+        db.rollback()
+        raise HTTPException(409, "ACCOUNT_ALREADY_EXISTS")
+    db.commit()
+    return ApiResponse(data={"user": {"id": user["id"], "name": user["name"], "role": "STUDENT"}})
 
 
 @router.post("/login", response_model=ApiResponse)

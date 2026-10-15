@@ -1,4 +1,4 @@
-"""Shared fixed-window login admission limits, persisted across workers and restarts."""
+"""Shared authentication limits, persisted across workers and restarts."""
 
 import hashlib
 import hmac
@@ -12,6 +12,15 @@ from app.core.config import settings
 
 def admit_login(db: Session, account: str, remote_address: str):
     scopes = [("ip", remote_address, 60, 60), ("account", account, 10, 600)]
+    _admit(db, scopes, "LOGIN_RATE_LIMITED")
+
+
+def admit_registration(db: Session, account: str, remote_address: str):
+    scopes = [("register:ip", remote_address, 20, 60), ("register:account", account, 5, 600)]
+    _admit(db, scopes, "REGISTRATION_RATE_LIMITED")
+
+
+def _admit(db: Session, scopes: list[tuple[str, str, int, int]], error_code: str):
     for kind, value, limit, seconds in scopes:
         key = hmac.new(
             settings.jwt_secret.encode(), f"{kind}:{value}".encode(), hashlib.sha256
@@ -30,6 +39,6 @@ def admit_login(db: Session, account: str, remote_address: str):
         ).scalar_one()
         if attempts > limit:
             db.commit()
-            raise HTTPException(429, "LOGIN_RATE_LIMITED", headers={"Retry-After": str(seconds)})
+            raise HTTPException(429, error_code, headers={"Retry-After": str(seconds)})
     db.execute(text("DELETE FROM login_rate_limits WHERE window_start < now() - interval '1 day'"))
     db.commit()

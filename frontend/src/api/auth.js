@@ -1,5 +1,11 @@
 import { apiFetch } from './client'
 
+export function register(studentNo, name, password) {
+  return apiFetch('/api/auth/register', {
+    method: 'POST', body: JSON.stringify({ student_no: studentNo, name, password }),
+  })
+}
+
 export async function login(account, password) {
   const result = await apiFetch('/api/auth/login', {
     method: 'POST', body: JSON.stringify({ account, password })

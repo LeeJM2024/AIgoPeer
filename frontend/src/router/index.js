@@ -5,6 +5,7 @@ import StudentProjectSubmissionView from '../views/student/StudentProjectSubmiss
 import StudentProgrammingSubmissionView from '../views/student/StudentProgrammingSubmissionView.vue'
 import StudentGradeView from '../views/student/StudentGradeView.vue'
 import LoginView from '../views/LoginView.vue'
+import RegisterView from '../views/RegisterView.vue'
 import TeacherDashboardView from '../views/teacher/TeacherDashboardView.vue'
 import TeacherAssignmentsView from '../views/teacher/TeacherAssignmentsView.vue'
 import TeacherAssignmentView from '../views/teacher/TeacherAssignmentView.vue'
@@ -27,6 +28,7 @@ const router = createRouter({
     },
     { path: '/', redirect: () => currentUser() ? (currentUser().role === 'TEACHER' ? '/teacher' : '/student') : '/login' },
     { path: '/login', component: LoginView, meta: { public: true } },
+    { path: '/register', component: RegisterView, meta: { public: true } },
     { path: '/student', component: StudentWorkspaceView },
     {
       path: '/student/assignments/:assignmentId/project-submission',

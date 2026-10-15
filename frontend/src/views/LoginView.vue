@@ -53,7 +53,7 @@ async function submit() {
       <button class="button" :disabled="busy">
         {{ busy ? '正在验证…' : '登录' }}
       </button>
-      <p class="form-help">账号由课程管理员提供。</p>
+      <p class="form-help">没有账号？<RouterLink to="/register">学生注册</RouterLink></p>
     </form>
     <p class="login-caption">教师与学生使用同一入口登录</p>
   </section>

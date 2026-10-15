@@ -37,7 +37,7 @@ onMounted(loadAssignments)
         <p>加载作业失败：{{ error }}</p>
         <button type="button" class="retry-button" @click="loadAssignments">重试</button>
       </div>
-      <p v-else-if="assignments.length === 0" class="empty-state">暂无已发布作业。</p>
+      <p v-else-if="assignments.length === 0" class="empty-state">暂无已发布作业。新注册同学请联系任课教师加入课程班级。</p>
       <StudentAssignmentList v-else :assignments="assignments" />
     </div>
   </section>

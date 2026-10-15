@@ -9,7 +9,7 @@ const route = useRoute()
 const router = useRouter()
 const user = computed(() => route.fullPath && currentUser())
 const isTeacher = computed(() => user.value?.role === 'TEACHER')
-const isLogin = computed(() => route.path === '/login')
+const isLogin = computed(() => route.meta.public)
 const hasReviewTasks = ref(false)
 let eligibilityVersion = 0
 

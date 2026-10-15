@@ -1,4 +1,6 @@
 export const errorMessages = {
+  ACCOUNT_ALREADY_EXISTS: '此学号已注册或已由教师创建，请直接登录。',
+  REGISTRATION_RATE_LIMITED: '注册尝试过于频繁，请稍后再试。',
   INITIAL_GRADE_REQUIRED: '请先独立录入并锁定教师初评分，再进行最终复核。',
   FINAL_REVIEW_REQUIRES_INITIAL_TEACHER: '最终复核须由最初录入教师评分的同一位教师完成。',
   FIXED_WEIGHTS_REQUIRED: '此作业的评分比例需要调整，请联系课程管理员。',
