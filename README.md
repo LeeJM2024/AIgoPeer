@@ -10,6 +10,7 @@
 * 教师端作业、Rubric、固定五人 Panel、评分锁定、更正和发布流程；
 * 教师工作台、登录入口和视频智能分析的安全扩展点；
 * 学生作业列表、知识点认领、上传与材料检查、C++17 提交和判题接口；
+* 本人编程/期末提交历史、当前版本恢复、期末上传截止校验与材料检查手动刷新；
 * 成员 2 的匿名评审任务、匿名材料包、评分提交与本人已发布成绩查询；
 * 教师固定 60/40 发布规则、LOW/MEDIUM 显式处理与首次评分教师最终复核；
 * 教师知识点目录、编程题与公开/隐藏用例配置、判题结果查询；
@@ -46,6 +47,9 @@ docker compose exec backend python scripts/seed_demo.py
 * `tests/`：后端单元/接口测试；
 * `docs/`：给组员的接入说明；
 
+学生端当前交付范围与职责边界见 [组员 2 交付说明](docs/组员2开发说明.md)，
+启动依赖、三条完整演示路径和回归入口见 [学生端交付验收与演示清单](docs/学生端交付验收与演示清单-20261015.md)。
+
 教师端的运行、权限和验收步骤见 `docs/教师端运行与验收.md`。视频 AI 密钥只允许通过
 服务器环境变量或密钥管理服务提供，绝不能写入前端代码或提交到仓库。
 
@@ -54,8 +58,10 @@ docker compose exec backend python scripts/seed_demo.py
 新增班级/学生管理、草稿编辑、异常复核、评分历史、发布前检查和成绩导出。
 教师成绩发布由服务端和数据库共同保护；历史评分、权重和最终结果可追溯。
 
-数据库集成测试使用 `TEST_DATABASE_URL` 指定测试用 PostgreSQL，每条测试创建并清理独立
-schema；不得使用生产数据库账号。运行 `python -m pytest tests/backend -q`。
+数据库集成测试使用 `TEST_DATABASE_URL` 指定独立空 PostgreSQL 测试库，每条测试创建并清理独立
+schema。当前夹具存在向 `public` 搜索路径回落的已知问题，不得使用已有 QA、业务或生产库；
+运行前确认目标库不含业务数据，且 `public.users`、`public.alembic_version` 均不存在。
+运行 `python -m pytest tests/backend -q`；未配置测试库时相关测试跳过，不能记为通过。
 安装 Playwright Chromium 并设置 `RUN_BROWSER_TESTS=1` 可运行两种桌面尺寸的真实浏览器链路。
 `.github/workflows/teacher-checks.yml` 在推送 teacher/develop 和向 develop 提交 PR 时执行这些检查。
 
