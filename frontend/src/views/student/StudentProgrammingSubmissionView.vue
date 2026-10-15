@@ -176,8 +176,8 @@ onBeforeUnmount(() => {
     <div v-else-if="error && !problem" class="error" role="alert">加载失败：{{ error }}</div>
     <template v-else-if="problem">
       <header class="hero">
-        <p class="eyebrow">编程题 · C++17 · {{ problem.time_limit_ms }} ms · {{ problem.memory_limit_mb }} MiB</p>
         <h1>{{ problem.title }}</h1>
+        <p class="problem-meta">C++17 · {{ problem.time_limit_ms }} ms · {{ problem.memory_limit_mb }} MiB</p>
         <p>{{ problem.statement }}</p>
       </header>
 
@@ -217,5 +217,32 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.programming-page { max-width: 1160px; margin: 0 auto; padding: 16px 0 24px; color: #163b31; }.back-link { color: #17603f; text-decoration: none; font-size: 14px; font-weight: 700; }.hero { margin: 28px 0 20px; }.hero h1 { margin: 6px 0; font-size: clamp(26px, 4vw, 34px); }.hero p { max-width: 720px; color: #365f52; line-height: 1.65; }.eyebrow { margin: 0; color: #276749; font-size: 13px; font-weight: 700; }.problem-grid { display: grid; grid-template-columns: minmax(260px, .85fr) minmax(0, 1.15fr); gap: 18px; }.panel { color: #e8f2ed; padding: 22px; border: 1px solid #35634e; border-radius: 12px; background: #103d2e; box-shadow: 0 12px 28px #031c1433; }.panel h2, .panel h3 { margin: 0; }.problem-panel h3 { margin-top: 22px; font-size: 15px; }.panel p { color: #c5dbcf; line-height: 1.55; }.sample { margin-top: 14px; }.sample span { color: #a8d5b8; font-size: 13px; }.sample pre { overflow: auto; padding: 10px; border-radius: 6px; background: #09281e; color: #dcfce7; }.submission-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }.submission-heading p { margin: 5px 0 0; font-size: 13px; }.submission-heading span { padding: 4px 8px; border-radius: 999px; color: #c6f6d5; background: #1d6247; font-size: 12px; }.editor-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 18px 0 8px; }.hint { margin: 0; color: #9fcbb0; font-size: 13px; }.clear-button { flex: none; border: 1px solid #5f9777; border-radius: 7px; padding: 7px 10px; color: #d7f5e1; background: transparent; cursor: pointer; }.submit-button { margin-top: 16px; border: 0; border-radius: 7px; padding: 10px 15px; color: #06271b; background: #b8e5c7; font-weight: 700; cursor: pointer; }.submit-button:disabled { cursor: not-allowed; opacity: .65; }.error { color: #fecaca; } @media (max-width: 760px) { .programming-page { padding-top: 8px; }.problem-grid { grid-template-columns: 1fr; }.editor-tools { align-items: flex-start; flex-direction: column; } }
+.programming-page { padding: 0; color: var(--ink); }
+.back-link { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; display: inline-flex; min-height: 44px; align-items: center; }
+.back-link:hover { color: var(--primary); }
+.hero { margin: 20px 0 24px; }
+.hero h1 { margin: 6px 0 10px; font-size: 28px; }
+.hero p { max-width: 760px; color: var(--muted); line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hero .problem-meta { color: var(--primary); font-size: 14px; margin: 0; }
+.problem-grid { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); gap: 22px; align-items: start; }
+.panel { min-width: 0; padding: 24px; color: var(--ink); border: 0; border-radius: var(--radius); background: var(--surface); }
+.panel h2, .panel h3 { margin: 0; }
+.problem-panel h3 { margin-top: 24px; font-size: 15px; }
+.panel p { color: var(--muted); line-height: 1.8; overflow-wrap: anywhere; white-space: pre-wrap; }
+.sample { margin-top: 16px; }
+.sample span { font-size: 13px; color: var(--muted); }
+.sample pre { padding: 14px; border: 0; border-radius: 4px; overflow: auto; background: var(--surface-subtle); color: var(--ink); font: 14px/1.7 Consolas, monospace; }
+.submission-heading { display: flex; justify-content: space-between; align-items: start; gap: 16px; flex-wrap: wrap; }
+.submission-heading p { margin: 5px 0 0; font-size: 14px; }
+.submission-heading > span { padding: 4px 9px; border-radius: 6px; color: var(--primary-hover); background: var(--primary-soft); font-size: 11px; }
+.editor-tools { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 18px 0 10px; }
+.hint { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+.editor-tools .hint { margin: 0; }
+.clear-button { flex: none; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 4px; color: var(--muted); background: var(--surface-subtle); font-size: 13px; }
+.clear-button:hover { border-color: var(--primary); color: var(--primary); }
+.submit-button { min-height: 44px; margin-top: 18px; padding: 10px 18px; border: 0; border-radius: 4px; color: white; background: var(--primary); font-size: 14px; font-weight: 600; }
+.submit-button:hover:not(:disabled) { background: var(--primary-hover); }
+.error { color: var(--danger); }
+@media (max-width: 1150px) { .problem-grid { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 680px) { .panel { padding: 18px; } .hero h1 { font-size: 24px; } }
 </style>

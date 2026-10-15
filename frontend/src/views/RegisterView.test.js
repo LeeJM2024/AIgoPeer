@@ -44,7 +44,7 @@ it('注册去除身份字段空白并保留密码，成功后清空密码且提�
   expect(register).toHaveBeenCalledExactlyOnceWith('20260001', '测试学生', ' StudentPassword2026! ')
   expect(wrapper.get('[role=status]').text()).toContain('账号已创建')
   expect(wrapper.text()).toContain('联系任课教师')
-  expect(wrapper.get('a[href="/login"]').text()).toBe('前往登录')
+  expect(wrapper.get('.auth-form a[href="/login"]').text()).toBe('前往登录')
   expect(wrapper.find('input[type=password]').exists()).toBe(false)
 })
 

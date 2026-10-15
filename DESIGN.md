@@ -2,16 +2,16 @@
 name: AlgoPeer
 description: A calm, auditable workspace for course grading and cross-class review.
 colors:
-  primary: "#164E63"
-  primary-hover: "#0E3F52"
+  primary: "#0F766E"
+  primary-hover: "#115E59"
   accent: "#D97706"
-  canvas: "#F4F7F8"
+  canvas: "#F1F4F3"
   surface: "#FFFFFF"
-  ink: "#17252D"
-  muted: "#52636D"
-  border: "#D5DEE2"
-  success: "#18794E"
-  warning: "#9A5B00"
+  ink: "#19363C"
+  muted: "#526B70"
+  border: "#E0E7EC"
+  success: "#17734E"
+  warning: "#925B0C"
   danger: "#B42318"
 typography:
   headline:
@@ -53,6 +53,12 @@ components:
 ---
 
 # Design System: AlgoPeer
+
+2026-10-16 第二轮视觉重设计：以「算法课程档案夹」为概念，采用深青导航、浅色工作区、分色课程封面、算法插画和可暂停动画。登录页改为课程标签表单与插画并置，附真实演示界面的交互预览。当前规则见 [MASTER.md](design-system/algopeer/MASTER.md)，实现以 `frontend/src/workspace.css` 与组件为准。
+
+当前视觉约定：系统中文无衬线字体；工作区正文 15px、公开页正文与表单 16px；工作区标题 30px、宣传标题最高 56px；容器圆角 6px、主要按钮 4px；无静态阴影、玻璃态或渐变。插画只表现算法结构与代码，不突出五人协作评审。公开页和工作台总览可以有宣传图，实际编程和评分操作页保持专注。
+
+以下为历史设计记录：保留任务层次、真实状态、证据可追溯等产品原则；与本段和 MASTER 冲突的视觉约定（居中登录、白色导航、无宣传图等）已被本轮明确替代。
 
 ## Overview
 

@@ -62,7 +62,7 @@ it('截止后恢复结果，上传控件禁用，保留刷新入口', async () =
   expect(w.get('.upload-fields').element.disabled).toBe(true)
   expect(button(w, '上传并检查').element.disabled).toBe(true)
   expect(button(w, '刷新提交状态').element.disabled).toBe(false)
-  expect(w.text()).toContain('材料检查结果：VALID')
+  expect(w.text()).toContain('材料检查结果：通过')
 })
 
 it('页面停留至截止时自动禁用上传', async () => {
@@ -76,9 +76,9 @@ it('页面停留至截止时自动禁用上传', async () => {
 it('后台 PENDING 继续轮询直到完成', async () => {
   api.getMaterialCheck.mockResolvedValueOnce(check('PENDING')).mockResolvedValue(check())
   const w = await open()
-  expect(w.text()).toContain('材料检查结果：PENDING')
+  expect(w.text()).toContain('材料检查结果：检查中')
   await vi.advanceTimersByTimeAsync(2000)
-  expect(w.text()).toContain('材料检查结果：VALID')
+  expect(w.text()).toContain('材料检查结果：通过')
   await vi.advanceTimersByTimeAsync(10000)
   expect(api.getMaterialCheck).toHaveBeenCalledTimes(2)
 })
@@ -96,7 +96,7 @@ it('轮询上限有停止提示，手动刷新可继续并读取服务端最新�
   await button(w, '刷新提交状态').trigger('click')
   await flushPromises()
   expect(w.text()).toContain('当前提交：第 2 版')
-  expect(w.text()).toContain('材料检查结果：VALID')
+  expect(w.text()).toContain('材料检查结果：通过')
   expect(w.text()).not.toContain('自动刷新已停止')
   expect(api.getMaterialCheck).toHaveBeenLastCalledWith(72)
 })
@@ -108,7 +108,7 @@ it('检查读取失败保留当前版本，刷新后恢复', async () => {
   expect(w.text()).toContain('网络中断')
   await button(w, '刷新提交状态').trigger('click')
   await flushPromises()
-  expect(w.text()).toContain('材料检查结果：VALID')
+  expect(w.text()).toContain('材料检查结果：通过')
   expect(w.text()).not.toContain('网络中断')
 })
 
@@ -122,7 +122,7 @@ it('重传后旧检查响应不能覆盖新版本结果', async () => {
   resolveOld(check())
   await flushPromises()
   expect(w.text()).toContain('当前提交：第 2 版')
-  expect(w.text()).toContain('材料检查结果：INVALID')
+  expect(w.text()).toContain('材料检查结果：未通过')
   expect(w.text()).toContain('缺失项：VIDEO')
 })
 
@@ -171,7 +171,7 @@ it('查看旧版不替换当前版本或表单，当前检查继续完成', asyn
   await flushPromises()
   await vi.advanceTimersByTimeAsync(2000)
   expect(w.get('.check-result').text()).toContain('当前提交：第 2 版')
-  expect(w.get('.check-result').text()).toContain('材料检查结果：VALID')
+  expect(w.get('.check-result').text()).toContain('材料检查结果：通过')
   expect(w.get('.history-detail').text()).toContain('缺失项：VIDEO')
   expect(w.get('input[placeholder="slides/lesson.pptx"]').element.value).toBe('CURRENT_SLIDES.pptx')
   expect(api.getMaterialCheck.mock.calls.filter(([id]) => id === 70)).toHaveLength(1)

@@ -380,7 +380,7 @@ async function submit() {
                 }}</small>
               </td>
               <td>
-                <span class="status-chip">{{
+                <span class="status-chip" :data-state="item.status">{{
                   stateName[item.status] || '状态待更新'
                 }}</span>
               </td>

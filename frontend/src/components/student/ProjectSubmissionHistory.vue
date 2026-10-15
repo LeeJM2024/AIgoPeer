@@ -121,12 +121,4 @@ onBeforeUnmount(() => { historyRequest++; detailRequest++ })
   </section>
 </template>
 
-<style scoped>
-.project-history { margin-top: 8px; padding: 20px; border: 1px solid #d7e5dc; border-radius: 10px; color: #163b31; }
-.history-heading { display: flex; gap: 16px; justify-content: space-between; align-items: start; }.history-heading h2, .history-heading h3 { margin: 0; }.history-heading p, .history-detail > p { color: #365f52; }
-button { padding: 8px 12px; border: 1px solid #5e8874; border-radius: 6px; color: #174d38; background: #f4faf6; cursor: pointer; }button:disabled { opacity: .55; cursor: not-allowed; }
-.history-table-wrap { overflow-x: auto; }table { width: 100%; border-collapse: collapse; text-align: left; }caption { padding: 12px 0; text-align: left; color: #365f52; }th, td { padding: 12px 8px; border-bottom: 1px solid #dce9e1; }th { background: #f4faf6; }tr.selected { background: #e8f5ed; }
-.current-tag { display: inline-block; margin-left: 8px; padding: 3px 6px; border-radius: 4px; background: #d5efdf; color: #174d38; font-size: 12px; }.history-pagination { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 16px; }
-.history-detail { margin-top: 22px; }.history-error { color: #b42318; }
-@media (max-width: 680px) { .history-heading { flex-direction: column; } }
-</style>
+<style scoped src="./submission-history.css"></style>
