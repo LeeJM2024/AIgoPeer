@@ -2,7 +2,11 @@ FROM python:3.13-slim
 
 WORKDIR /app
 COPY backend/pyproject.toml ./
-RUN pip install --no-cache-dir .
+COPY backend/app/ ./app/
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir .
 COPY backend/ ./
 COPY algorithm/ /app/algorithm/
 ENV PYTHONPATH=/app
