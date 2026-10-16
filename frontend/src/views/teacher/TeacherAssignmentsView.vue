@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import UiIcon from '../../components/UiIcon.vue'
+import AssignmentArtwork from '../../components/AssignmentArtwork.vue'
 import ProgrammingProblemEditor from '../../components/teacher/ProgrammingProblemEditor.vue'
 import {
   createAssignment,
@@ -374,10 +375,10 @@ async function submit() {
           <tbody>
             <tr v-for="item in filteredAssignments" :key="item.id">
               <td>
-                <strong>{{ item.title }}</strong
+                <div class="assignment-title-cell"><span class="assignment-cover"><AssignmentArtwork :assignment="item" /></span><div><strong>{{ item.title }}</strong
                 ><small>{{
                   item.type === 'FINAL_PROJECT' ? '期末项目' : '编程题'
-                }}</small>
+                }}</small></div></div>
               </td>
               <td>
                 <span class="status-chip" :data-state="item.status">{{
@@ -418,3 +419,11 @@ async function submit() {
     </section>
   </div>
 </template>
+
+<style scoped>
+.assignment-title-cell { display: flex; align-items: center; gap: 16px; min-width: 180px; }
+.assignment-title-cell > div { min-width: 0; }
+.assignment-cover { flex: none; width: 80px; height: 58px; background: var(--art-gradient); border-radius: 14px; overflow: hidden; }
+.assignment-cover :deep(svg) { width: 100%; height: 100%; display: block; }
+@media(max-width:760px) { .assignment-cover { width: 58px; height: 50px; } }
+</style>

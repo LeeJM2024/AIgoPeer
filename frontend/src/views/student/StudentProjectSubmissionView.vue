@@ -1,4 +1,5 @@
 <script setup>
+import AssignmentArtwork from '../../components/AssignmentArtwork.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import ProjectSubmissionHistory from '../../components/student/ProjectSubmissionHistory.vue'
@@ -229,9 +230,10 @@ onBeforeUnmount(() => {
 <template>
   <section class="card submission-page">
     <RouterLink class="back-link" to="/student">← 返回我的作业</RouterLink>
-    <p class="eyebrow">期末项目作业</p>
+    <header class="project-intro"><div><p class="eyebrow">期末项目作业</p>
     <h1>认领并上传</h1>
     <p>先认领一个知识点，再提交符合命名规范的 ZIP 作业包。</p>
+    </div><figure v-if="assignment"><AssignmentArtwork :assignment="{ title: claim?.topic?.name || assignment.title, type: 'FINAL_PROJECT' }" /><figcaption>算法主题插画 · 以认领知识点要求为准</figcaption></figure></header>
     <template v-if="assignment">
       <p>{{ assignment.title }} · 提交截止：{{ formatTime(assignment.submit_deadline) }}</p>
       <p v-if="!canSubmit" class="hint" role="status">{{ deadlinePassed ? '作业已截止。' : '当前阶段不允许上传。' }}已有提交和材料检查结果仍可查看。</p>
@@ -311,12 +313,18 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .submission-page { display: grid; grid-template-columns: minmax(0,1fr); gap: 16px; }
+.project-intro { display: grid; grid-template-columns: minmax(0,1fr) 300px; align-items: center; gap: 28px; }
+.project-intro h1 { margin-top: 12px; font-size: 32px; }
+.project-intro p { color: var(--muted); line-height: 1.8; }
+.project-intro figure { margin: 0; background: var(--art-gradient); border-radius: 24px 64px 24px 24px; padding: 12px; }
+.project-intro :deep(svg) { width: 100%; height: 160px; display: block; }
+.project-intro figcaption { font-size: 12px; color: var(--muted); text-align: center; }
 .submission-page > *, .form-section > *, .check-result > * { min-width: 0; }
 .back-link { width: fit-content; display: inline-flex; align-items: center; min-height: 32px; color: var(--muted); font-size: 12px; text-decoration: none; }
 .back-link:hover { color: var(--primary); }
 .eyebrow { margin: 0; color: var(--primary); font-size: 12px; font-weight: 600; }
 h1, h2 { margin: 0; }
-.form-section, .check-result { display: grid; grid-template-columns: minmax(0,1fr); gap: 16px; padding: 24px; border: 1px solid var(--border); border-radius: 10px; }
+.form-section, .check-result { display: grid; grid-template-columns: minmax(0,1fr); gap: 16px; padding: 24px; border: 0; background: var(--surface-subtle); border-radius: 24px; }
 .check-result { background: var(--surface-subtle); }
 .claim-summary, .success { margin: 0; color: var(--success); font-weight: 600; }
 .hint { margin: 0; color: var(--muted); font-size: 13px; }
@@ -329,7 +337,7 @@ input[type=file] { background: var(--surface-subtle); border-style: dashed; padd
 input[type=file]::file-selector-button { margin-right: 12px; padding: 7px 12px; border: 1px solid var(--input-border); background: var(--surface); color: var(--ink); border-radius: 6px; cursor: pointer; }
 .test-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .upload-fields { padding: 0; border: 0; }
-button { justify-self: start; min-height: 42px; padding: 9px 15px; border: 1px solid var(--primary); border-radius: 7px; color: white; background: var(--primary); font-size: 13px; font-weight: 550; }
+button { justify-self: start; min-height: 44px; padding: 9px 15px; border: 1px solid var(--primary); border-radius: 14px; color: white; background: var(--primary); font-size: 13px; font-weight: 550; }
 button:hover:not(:disabled) { background: var(--primary-hover); }
-@media (max-width: 680px) { .field-grid, .test-row { grid-template-columns: minmax(0,1fr); } .form-section, .check-result { padding: 16px; } }
+@media (max-width: 680px) { .project-intro, .field-grid, .test-row { grid-template-columns: minmax(0,1fr); } .project-intro figure { max-width: 100%; } .form-section, .check-result { padding: 16px; } }
 </style>

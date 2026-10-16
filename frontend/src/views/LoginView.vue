@@ -38,8 +38,8 @@ async function submit() {
   <AuthExperience showcase>
     <form class="auth-form" aria-labelledby="login-title" @submit.prevent="submit">
       <div class="login-heading">
-        <h1 id="login-title">欢迎回来</h1>
-        <p class="muted">登录课程账号，继续今天的学习与教学。</p>
+        <h1 id="login-title">登录课程空间</h1>
+        <p class="muted">继续你的编程练习与课程项目。</p>
       </div>
       <label
         >账号<input v-model="account" autocomplete="username" placeholder="请输入学号或教师账号" autocapitalize="none" spellcheck="false" :disabled="busy" required

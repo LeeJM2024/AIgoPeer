@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, ref } from 'vue'
+import BrandLogo from '../components/BrandLogo.vue'
 
 import DevTokenPanel from '../components/development/DevTokenPanel.vue'
 import ServiceHealthCard from '../components/development/ServiceHealthCard.vue'
@@ -28,7 +29,7 @@ onMounted(checkHealth)
 
 <template>
   <section class="console-header">
-    <p class="console-header__kicker">AlgoPeer</p>
+    <p class="console-header__kicker"><BrandLogo /></p>
     <h1>开发测试台</h1>
     <p>确认后端连接，再使用测试身份进入学生工作台验证当前功能。</p>
   </section>

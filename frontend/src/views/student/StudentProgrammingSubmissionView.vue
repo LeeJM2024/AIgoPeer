@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import StudentCodeEditor from '../../components/student/StudentCodeEditor.vue'
+import AssignmentArtwork from '../../components/AssignmentArtwork.vue'
+import { assignmentArt } from '../../presentation/assignments'
 import ProgrammingSubmissionResult from '../../components/student/ProgrammingSubmissionResult.vue'
 import ProgrammingSubmissionHistory from '../../components/student/ProgrammingSubmissionHistory.vue'
 import { currentUser } from '../../api/auth'
@@ -178,12 +180,13 @@ onBeforeUnmount(() => {
       <header class="hero">
         <h1>{{ problem.title }}</h1>
         <p class="problem-meta">C++17 · {{ problem.time_limit_ms }} ms · {{ problem.memory_limit_mb }} MiB</p>
-        <p>{{ problem.statement }}</p>
       </header>
 
       <div class="problem-grid">
         <article class="panel problem-panel">
           <h2>题目说明</h2>
+          <figure v-if="assignmentArt(problem) !== 'code'" class="problem-art"><AssignmentArtwork :assignment="problem" /><figcaption>算法主题插画 · 具体要求以题目说明为准</figcaption></figure>
+          <p>{{ problem.statement }}</p>
           <h3>输入</h3><p>{{ problem.input_description }}</p>
           <h3>输出</h3><p>{{ problem.output_description }}</p>
           <h3>公开样例</h3>
@@ -231,18 +234,21 @@ onBeforeUnmount(() => {
 .panel p { color: var(--muted); line-height: 1.8; overflow-wrap: anywhere; white-space: pre-wrap; }
 .sample { margin-top: 16px; }
 .sample span { font-size: 13px; color: var(--muted); }
-.sample pre { padding: 14px; border: 0; border-radius: 4px; overflow: auto; background: var(--surface-subtle); color: var(--ink); font: 14px/1.7 Consolas, monospace; }
+.sample pre { padding: 14px; border: 0; border-radius: 14px; overflow: auto; background: var(--surface-subtle); color: var(--ink); font: 14px/1.7 Consolas, monospace; }
+.problem-art { margin: 20px 0; padding: 12px; background: var(--art-gradient); border-radius: 20px 60px 20px 20px; }
+.problem-art :deep(svg) { display: block; width: 100%; max-height: 190px; }
+.problem-art figcaption { text-align: center; font-size: 12px; color: var(--muted); }
 .submission-heading { display: flex; justify-content: space-between; align-items: start; gap: 16px; flex-wrap: wrap; }
 .submission-heading p { margin: 5px 0 0; font-size: 14px; }
 .submission-heading > span { padding: 4px 9px; border-radius: 6px; color: var(--primary-hover); background: var(--primary-soft); font-size: 11px; }
 .editor-tools { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 18px 0 10px; }
 .hint { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
 .editor-tools .hint { margin: 0; }
-.clear-button { flex: none; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 4px; color: var(--muted); background: var(--surface-subtle); font-size: 13px; }
+.clear-button { flex: none; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 14px; color: var(--muted); background: var(--surface-subtle); font-size: 13px; }
 .clear-button:hover { border-color: var(--primary); color: var(--primary); }
-.submit-button { min-height: 44px; margin-top: 18px; padding: 10px 18px; border: 0; border-radius: 4px; color: white; background: var(--primary); font-size: 14px; font-weight: 600; }
+.submit-button { min-height: 44px; margin-top: 18px; padding: 10px 18px; border: 0; border-radius: 14px; color: white; background: var(--primary); font-size: 14px; font-weight: 600; }
 .submit-button:hover:not(:disabled) { background: var(--primary-hover); }
 .error { color: var(--danger); }
-@media (max-width: 1150px) { .problem-grid { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 900px) { .problem-grid { grid-template-columns: minmax(0,1fr); } }
 @media (max-width: 680px) { .panel { padding: 18px; } .hero h1 { font-size: 24px; } }
 </style>

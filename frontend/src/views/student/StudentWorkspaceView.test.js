@@ -43,3 +43,19 @@ it('错误可重试，空列表提示联系教师加入班级', async () => {
   expect(wrapper.text()).toContain('请联系任课教师加入课程班级')
   expect(wrapper.find('[role=alert]').exists()).toBe(false)
 })
+
+it('当前待办只展开一次，搜索后所有匹配项仍可访问', async () => {
+  getMyAssignments.mockResolvedValue([
+    {id:1,title:'归并排序',type:'PROGRAMMING',status:'PUBLISHED',submit_deadline:'2099-01-01'},
+    {id:2,title:'树的递归',type:'PROGRAMMING',status:'PUBLISHED',submit_deadline:'2099-01-02'},
+  ])
+  const wrapper = open()
+  await flushPromises()
+  expect(wrapper.findAll('.featured-assignment')).toHaveLength(1)
+  expect(wrapper.findAll('.assignment-card')).toHaveLength(2)
+  expect(wrapper.get('.featured-assignment').text()).toContain('归并排序')
+  await wrapper.get('[aria-label="搜索我的作业"]').setValue('树')
+  expect(wrapper.find('.featured-assignment').exists()).toBe(false)
+  expect(wrapper.findAll('.assignment-card')).toHaveLength(1)
+  expect(wrapper.get('.assignment-card a').attributes('href')).toBe('/student/assignments/2/programming-submission')
+})
