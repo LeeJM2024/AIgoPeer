@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
@@ -142,7 +141,7 @@ def get_upload_context(*, db: Session, assignment_id: int, student_id: int) -> U
 
 
 def validate_archive_filename(*, file_name: str | None, context: UploadContext) -> str:
-    if file_name is None or not re.fullmatch(r"[^_]+_[^_]+_\d{2}\.zip", file_name):
+    if file_name is None or any(char in file_name for char in ("/", "\\", "\x00")):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="VALIDATION_ERROR")
     expected_name = f"{context.student_no}_{context.student_name}_{context.topic_code}.zip"
     if file_name != expected_name:

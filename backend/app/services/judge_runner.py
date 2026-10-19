@@ -8,9 +8,9 @@ nor the Vue client executes or receives hidden testcase data.
 from __future__ import annotations
 
 import shutil
-import time
 import uuid
 from dataclasses import dataclass
+from decimal import ROUND_CEILING, Decimal, InvalidOperation
 from pathlib import Path
 
 import docker
@@ -141,6 +141,19 @@ def _read_output(path: Path) -> str:
         raise JudgeInfrastructureError("judge output cannot be read") from exc
 
 
+def _read_usage(path: Path) -> tuple[int, int]:
+    """Read GNU time's final record, separate from student diagnostics."""
+    try:
+        elapsed, memory = path.read_text(encoding="utf-8").splitlines()[-1].split()
+        milliseconds = Decimal(elapsed) * 1000
+        memory_kb = int(memory)
+        if not milliseconds.is_finite() or milliseconds < 0 or memory_kb < 0:
+            raise ValueError("invalid usage")
+        return int(milliseconds.to_integral_value(rounding=ROUND_CEILING)), memory_kb
+    except (OSError, ValueError, IndexError, InvalidOperation) as exc:
+        raise JudgeInfrastructureError("judge runtime usage is unavailable") from exc
+
+
 def run_cpp17_submission(
     *,
     submission_id: int,
@@ -175,67 +188,68 @@ def run_cpp17_submission(
                 ],
             )
 
-        started = time.monotonic()
+        elapsed_ms = 0
         max_memory_kb: int | None = None
         passed = 0
         executed = 0
         for case_index, case in enumerate(cases, start=1):
-            if (time.monotonic() - started) * 1000 >= settings.judge_total_time_limit_ms:
-                return JudgeRunResult("TLE", executed, passed, settings.judge_total_time_limit_ms, max_memory_kb)
+            remaining_ms = settings.judge_total_time_limit_ms - elapsed_ms
+            if remaining_ms <= 0:
+                return JudgeRunResult("TLE", executed, passed, elapsed_ms, max_memory_kb)
+            case_budget_ms = min(time_limit_ms, remaining_ms)
             input_path = work_dir / "input.txt"
             output_path = work_dir / "output.txt"
             input_path.write_text(case.input_data, encoding="utf-8")
             output_path.write_text("", encoding="utf-8")
             shutil.chown(input_path, user=10001, group=10001)
             shutil.chown(output_path, user=10001, group=10001)
+            usage_path = work_dir / f"usage-{case_index}.txt"
             # `ulimit -f` keeps redirected program output within the agreed cap.
             file_blocks = max(1, settings.judge_output_limit_bytes // 512)
             script = (
                 f"ulimit -f {file_blocks}; "
-                "/usr/bin/time -f 'ALGOPEER_MEMORY_KB:%M' "
-                "./main < input.txt > output.txt"
+                f"/usr/bin/time -o {usage_path.name} -f '%e %M' "
+                f"timeout --kill-after=0.1s {case_budget_ms / 1000:.3f}s "
+                # Reserve timeout's 124 status; a student returning 124 is RE.
+                "sh -c './main; code=$?; if [ \"$code\" -eq 124 ]; then exit 125; fi; exit \"$code\"' "
+                "< input.txt > output.txt"
             )
-            before = time.monotonic()
             try:
                 execution = _run_container(
                     work_name=work_name,
                     memory_limit_mb=memory_limit_mb,
                     script=script,
-                    timeout_seconds=max(1, time_limit_ms / 1000) + 0.25,
+                    # Docker start/wait/remove is infrastructure time. The
+                    # in-container timeout enforces the student's actual budget.
+                    timeout_seconds=case_budget_ms / 1000 + 5,
                 )
             except TimeoutError:
-                elapsed = int((time.monotonic() - started) * 1000)
-                return JudgeRunResult("TLE", executed + 1, passed, elapsed, max_memory_kb)
-            elapsed_case_ms = int((time.monotonic() - before) * 1000)
+                raise JudgeInfrastructureError("judge container exceeded its wall timeout") from None
             executed += 1
-            for line in (execution.stderr or "").splitlines():
-                if line.startswith("ALGOPEER_MEMORY_KB:"):
-                    try:
-                        memory_kb = int(line.split(":", 1)[1])
-                        max_memory_kb = max(max_memory_kb or 0, memory_kb)
-                    except ValueError:
-                        pass
+            elapsed_case_ms, memory_kb = _read_usage(usage_path)
+            elapsed_ms += elapsed_case_ms
+            max_memory_kb = max(max_memory_kb or 0, memory_kb)
+            if execution.returncode == 124 or elapsed_case_ms > case_budget_ms or (
+                execution.returncode == 137 and elapsed_case_ms >= case_budget_ms
+            ):
+                return JudgeRunResult("TLE", executed, passed, elapsed_ms, max_memory_kb)
             if execution.returncode != 0:
                 return JudgeRunResult(
-                    "RE", executed, passed, int((time.monotonic() - started) * 1000), max_memory_kb
+                    "RE", executed, passed, elapsed_ms, max_memory_kb
                 )
             try:
                 actual_output = _read_output(output_path)
             except ValueError:
                 return JudgeRunResult(
-                    "RE", executed, passed, int((time.monotonic() - started) * 1000), max_memory_kb
+                    "RE", executed, passed, elapsed_ms, max_memory_kb
                 )
             if _normalized_output(actual_output) != _normalized_output(case.expected_output):
                 return JudgeRunResult(
-                    "WA", executed, passed, int((time.monotonic() - started) * 1000), max_memory_kb
+                    "WA", executed, passed, elapsed_ms, max_memory_kb
                 )
             passed += 1
-            if elapsed_case_ms > time_limit_ms:
-                return JudgeRunResult(
-                    "TLE", executed, passed, int((time.monotonic() - started) * 1000), max_memory_kb
-                )
         return JudgeRunResult(
-            "AC", executed, passed, int((time.monotonic() - started) * 1000), max_memory_kb
+            "AC", executed, passed, elapsed_ms, max_memory_kb
         )
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)

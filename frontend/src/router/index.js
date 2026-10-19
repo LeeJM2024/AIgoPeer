@@ -29,23 +29,26 @@ const router = createRouter({
     { path: '/', redirect: () => currentUser() ? (currentUser().role === 'TEACHER' ? '/teacher' : '/student') : '/login' },
     { path: '/login', component: LoginView, meta: { public: true } },
     { path: '/register', component: RegisterView, meta: { public: true } },
-    { path: '/student', component: StudentWorkspaceView },
+    { path: '/student', component: StudentWorkspaceView, meta: { student: true } },
     {
       path: '/student/assignments/:assignmentId/project-submission',
       component: StudentProjectSubmissionView,
       props: true,
+      meta: { student: true },
     },
     {
       path: '/student/assignments/:assignmentId/programming-submission',
       component: StudentProgrammingSubmissionView,
       props: true,
+      meta: { student: true },
     },
     {
       path: '/student/assignments/:assignmentId/grade',
       component: StudentGradeView,
       props: true,
+      meta: { student: true },
     },
-    { path: '/reviewer/tasks', component: ReviewerTasksView },
+    { path: '/reviewer/tasks', component: ReviewerTasksView, meta: { student: true } },
     {
       path: '/teacher',
       component: TeacherDashboardView,

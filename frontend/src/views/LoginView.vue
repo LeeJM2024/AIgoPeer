@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { login } from '../api/auth'
 import UiIcon from '../components/UiIcon.vue'
 import AuthExperience from '../components/AuthExperience.vue'
+import { loginRedirect } from '../router/loginRedirect'
 
 const account = ref('')
 const password = ref('')
@@ -19,10 +20,7 @@ async function submit() {
   busy.value = true
   try {
     const user = await login(account.value.trim(), password.value)
-    router.push(
-      route.query.redirect ||
-        (user.role === 'TEACHER' ? '/teacher' : '/student'),
-    )
+    await router.push(loginRedirect(router, route.query.redirect, user.role))
   } catch (err) {
     error.value =
       err.message === 'INVALID_CREDENTIALS'
