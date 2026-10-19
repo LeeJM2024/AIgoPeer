@@ -11,7 +11,12 @@ export async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
   if (response.ok && options.responseType === 'blob') return response.blob()
   const body = await response.json().catch(() => null)
-  if (response.status === 401 && path !== '/api/auth/login') {
+  if (
+    response.status === 401 &&
+    path !== '/api/auth/login' &&
+    token &&
+    localStorage.getItem('algopeer_token') === token
+  ) {
     localStorage.removeItem('algopeer_token')
     localStorage.removeItem('algopeer_user')
     window.dispatchEvent(new Event('algopeer-session-expired'))

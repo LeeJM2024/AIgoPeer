@@ -320,12 +320,12 @@ function publishAll() {
               缺少：{{ selected.missing_items.join('、') }}
             </p>
           </div>
-          <SubmissionEvidence
+          <div class="grading-content"><SubmissionEvidence
             :key="selected.id + ':' + selected.final_review_status"
             :submission-id="selected.id"
             :rubric-items="data.rubric_items"
           />
-          <p v-if="!eligible && !published" class="notice notice-error">
+          <div class="scoring-column"><p v-if="!eligible && !published" class="notice notice-error">
             当前提交或作业阶段不允许评分。
           </p>
           <form @submit.prevent="save">
@@ -479,9 +479,17 @@ function publishAll() {
                 >保存于 {{ new Date(grade.created_at).toLocaleString() }}</small
               >
             </details>
-          </section>
+          </section></div></div>
         </section>
       </div>
     </template>
   </div>
 </template>
+
+<style scoped>
+.grading-content { display: grid; grid-template-columns: minmax(0,1fr); gap: 26px; align-items: start; }
+.scoring-column { min-width: 0; padding: 22px; border-radius: 24px; background: var(--surface); }
+.grading-content :deep(.evidence-section) { margin-top: 0; border-top: 0; padding-top: 0; }
+@media(min-width:1350px) { .grading-content { grid-template-columns: minmax(0,1.05fr) minmax(0,1fr); } .score-sheet > label { align-items: flex-start; flex-wrap: wrap; gap: 10px; } }
+@media(max-width:760px) { .scoring-column { padding: 18px 14px; } }
+</style>

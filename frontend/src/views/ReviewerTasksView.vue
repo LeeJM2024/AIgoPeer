@@ -115,6 +115,7 @@ onMounted(loadTasks)
           type="button"
           :disabled="saving || downloading"
           :class="{ selected: selectedTaskId === task.task_id }"
+          :aria-pressed="selectedTaskId === task.task_id"
           @click="selectTask(task)"
         >
           <strong>匿名作业 {{ task.anonymous_token }}</strong>
@@ -165,5 +166,40 @@ onMounted(loadTasks)
 </template>
 
 <style scoped>
-.reviewer-page { display:grid; gap:22px; }.reviewer-page__header { padding:28px; border-radius:14px; color:#eaf7f0; background:linear-gradient(125deg,#063a2b,#0d5a42); }.reviewer-page__header h1 { margin:5px 0 8px; }.reviewer-page__header p:last-child { margin:0; color:#c9e6d4; }.eyebrow { margin:0; color:#34785c; font-size:13px; font-weight:750; }.reviewer-page__header .eyebrow { color:#9bd0af; }.notice { margin:0; padding:12px 14px; border-radius:8px; color:#165f3d; background:#e8f7ed; }.reviewer-layout { display:grid; grid-template-columns:250px minmax(0,1fr); min-height:560px; overflow:hidden; border:1px solid #cfe2d6; border-radius:12px; background:#fff; }.task-list { background:#f2f8f4; border-right:1px solid #cfe2d6; }.task-list button { display:grid; width:100%; gap:6px; padding:16px; border:0; border-bottom:1px solid #dcebe1; background:transparent; text-align:left; cursor:pointer; }.task-list button.selected { background:#fff; box-shadow:inset 3px 0 #0d5a42; }.task-list small,.task-list span,.review-form small { color:#61756a; }.task-list span { font-size:12px; font-weight:700; }.review-form { padding:26px; }.review-form__heading { display:flex; justify-content:space-between; gap:18px; border-bottom:1px solid #e2ece5; padding-bottom:18px; }.review-form__heading h2 { margin:5px 0; }.review-form__heading p:last-child { margin:0; color:#61756a; }.status-badge { height:max-content; padding:5px 9px; border-radius:99px; color:#17603f; background:#e5f5eb; font-size:12px; font-weight:700; }.anonymous-material { margin:20px 0; padding:18px; border-radius:9px; background:#f4f9f6; }.anonymous-material h3 { margin-bottom:8px; }.anonymous-material p { margin:0 0 14px; color:#52695d; line-height:1.55; }.score-row { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:13px 0; border-top:1px solid #e4ece6; }.score-row:first-of-type { border-top:0; }.score-row>span:first-child { display:grid; gap:4px; }.score-row small { font-weight:400; }.score-input { display:flex; align-items:center; gap:7px; white-space:nowrap; }.score-input input { width:92px; text-align:right; }.comment-field { margin-top:12px; }.form-actions { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:20px; }.empty-state { padding:28px; border:1px dashed #a6bfaf; border-radius:10px; color:#52695d; background:#fbfdfb; }.muted { color:#61756a; } @media (max-width:720px) { .reviewer-layout { grid-template-columns:1fr; }.task-list { display:flex; overflow:auto; border-right:0; border-bottom:1px solid #cfe2d6; }.task-list button { min-width:220px; }.score-row,.review-form__heading,.form-actions { align-items:flex-start; flex-direction:column; }.review-form { padding:18px; } }
+.reviewer-page { display: grid; grid-template-columns: minmax(0,1fr); gap: 24px; }
+.reviewer-page > * { min-width: 0; }
+.reviewer-page__header h1 { margin: 4px 0 7px; }
+.reviewer-page__header p:last-child { margin: 0; color: var(--muted); font-size: 13px; }
+.eyebrow { margin: 0; color: var(--primary); font-size: 12px; font-weight: 600; }
+.notice { color: var(--success); background: var(--success-soft); border: 1px solid #c0dfcc; }
+.reviewer-layout { display: grid; grid-template-columns: 236px minmax(0,1fr); min-height: 560px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.task-list { background: var(--surface-subtle); border-right: 1px solid var(--border); }
+.task-list button { display: grid; width: 100%; gap: 7px; padding: 20px 18px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--ink); text-align: left; overflow-wrap: anywhere; }
+.task-list button:hover { background: var(--primary-soft); }
+.task-list button.selected { background: var(--primary-soft); color: var(--primary-hover); }
+.task-list strong { font-weight: 600; font-size: 13px; }
+.task-list small, .review-form small { color: var(--muted); font-size: 12px; }
+.task-list span { font-size: 11px; color: var(--primary); }
+.review-form { min-width: 0; padding: 26px; }
+.review-form__heading { display: flex; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--border); padding-bottom: 22px; }
+.review-form__heading > div { min-width: 0; overflow-wrap: anywhere; }
+.review-form__heading h2 { margin: 6px 0; }
+.review-form__heading p:last-child { margin: 0; color: var(--muted); font-size: 12px; }
+.anonymous-material { margin: 22px 0; padding: 20px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-subtle); }
+.anonymous-material h3 { margin-bottom: 8px; }
+.anonymous-material p { margin: 0 0 14px; color: var(--muted); line-height: 1.8; font-size: 13px; }
+.anonymous-material small { display: block; margin-top: 10px; }
+.score-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 0; border-top: 1px solid var(--border); }
+.score-row:first-of-type { border-top: 0; }
+.score-row > span:first-child { display: grid; gap: 5px; }
+.score-row small { font-weight: 400; }
+.score-input { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.score-input input { width: 86px; text-align: right; }
+.score-input b { color: var(--muted); font-size: 12px; }
+.comment-field { margin-top: 14px; }
+.form-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; }
+.form-actions > span { font-size: 12px; }
+.empty-state { background: var(--surface); border: 1px solid var(--border); }
+@media (max-width: 800px) { .reviewer-layout { grid-template-columns: minmax(0,1fr); } .task-list { max-height: 220px; overflow-y: auto; border-right: 0; border-bottom: 1px solid var(--border); } .task-list button { padding: 14px 18px; } }
+@media (max-width: 680px) { .score-row, .review-form__heading, .form-actions { align-items: flex-start; flex-direction: column; } .review-form { padding: 18px; } .anonymous-material { padding: 16px; } }
 </style>

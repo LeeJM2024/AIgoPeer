@@ -36,5 +36,23 @@ onMounted(loadGrade)
 </template>
 
 <style scoped>
-.grade-page { display:grid; gap:20px; }.grade-page h1 { margin:-12px 0 0; }.back-link { width:max-content; text-decoration:none; }.eyebrow { margin:0; color:#276749; font-size:13px; font-weight:750; }.score-card { display:grid; gap:5px; padding:28px; border-radius:14px; color:#ecfaf1; background:linear-gradient(125deg,#063a2b,#0d5a42); }.score-card strong { font-size:52px; line-height:1; }.score-card small { color:#c9e6d4; }.card { padding:24px; border:1px solid #d5e3da; border-radius:12px; background:#fff; }.card h2 { margin-bottom:10px; }.muted { color:#61756a; }.empty-state { padding:22px; border:1px dashed #a6bfaf; border-radius:9px; color:#61756a; }.rubric-list,.comment-list { display:grid; gap:12px; padding:0; list-style:none; }.rubric-list li { padding:14px; border-radius:8px; background:#f4f9f6; }.rubric-list span { float:right; color:#38634c; font-size:13px; }.rubric-list p { clear:both; margin:8px 0 0; color:#61756a; }.comment-list li { padding:14px; border-left:3px solid #6fa684; background:#f7faf8; line-height:1.6; }
+.grade-page { display: grid; grid-template-columns: minmax(0,1fr); gap: 20px; }
+.grade-page > * { min-width: 0; }
+.grade-page h1 { margin: -12px 0 0; }
+.back-link { width: fit-content; min-height: 32px; display: inline-flex; align-items: center; color: var(--muted); font-size: 12px; text-decoration: none; }
+.back-link:hover { color: var(--primary); }
+.eyebrow { margin: 0; color: var(--primary); font-size: 12px; font-weight: 600; }
+.score-card { display: grid; gap: 14px; padding: 28px; border: 1px solid #cee3df; border-radius: var(--radius); color: var(--primary-hover); background: var(--primary-soft); }
+.score-card > span { font-size: 13px; }
+.score-card strong { font-size: 48px; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+.score-card small { font-size: 12px; color: var(--muted); }
+.card h2 { margin-bottom: 10px; }
+.card > p { margin-bottom: 0; }
+.empty-state { padding: 24px; border: 1px solid var(--border); background: var(--surface); }
+.rubric-list, .comment-list { display: grid; gap: 12px; padding: 0; list-style: none; margin-bottom: 0; }
+.rubric-list li { display: block; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-subtle); }
+.rubric-list strong { font-size: 14px; }
+.rubric-list li > span { display: inline; width: auto; height: auto; padding: 0; border-radius: 0; float: right; background: none; color: var(--muted); font-size: 12px; font-weight: 400; }
+.rubric-list p { clear: both; margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+.comment-list li { padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-subtle); line-height: 1.8; overflow-wrap: anywhere; }
 </style>

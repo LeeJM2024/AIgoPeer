@@ -1,0 +1,282 @@
+[
+  {
+    "sample": "AC-1",
+    "pass": true,
+    "expected": "AC",
+    "result": {
+      "id": 12,
+      "assignment_id": 1,
+      "language": "cpp17",
+      "version": 1,
+      "status": "AC",
+      "submitted_at": "2026-10-19T02:22:29.969111Z",
+      "started_at": "2026-10-19T02:22:30.042154Z",
+      "finished_at": "2026-10-19T02:22:35.208520Z",
+      "time_ms": 0,
+      "memory_kb": 3456,
+      "executed_case_count": 3,
+      "passed_case_count": 3,
+      "compiler_output": null
+    },
+    "database": {
+      "status": "AC",
+      "started_at": "2026-10-19 02:22:30.042154+00:00",
+      "finished_at": "2026-10-19 02:22:35.208520+00:00",
+      "updated_at": "2026-10-19 02:22:35.208520+00:00",
+      "retry_count": 0
+    },
+    "wall_duration_ms": 5166.366
+  },
+  {
+    "sample": "AC-2",
+    "pass": true,
+    "expected": "AC",
+    "result": {
+      "id": 13,
+      "assignment_id": 1,
+      "language": "cpp17",
+      "version": 2,
+      "status": "AC",
+      "submitted_at": "2026-10-19T02:22:35.471671Z",
+      "started_at": "2026-10-19T02:22:35.491639Z",
+      "finished_at": "2026-10-19T02:22:40.225756Z",
+      "time_ms": 0,
+      "memory_kb": 3456,
+      "executed_case_count": 3,
+      "passed_case_count": 3,
+      "compiler_output": null
+    },
+    "database": {
+      "status": "AC",
+      "started_at": "2026-10-19 02:22:35.491639+00:00",
+      "finished_at": "2026-10-19 02:22:40.225756+00:00",
+      "updated_at": "2026-10-19 02:22:40.225756+00:00",
+      "retry_count": 0
+    },
+    "wall_duration_ms": 4734.117
+  },
+  {
+    "sample": "AC-3",
+    "pass": true,
+    "expected": "AC",
+    "result": {
+      "id": 14,
+      "assignment_id": 1,
+      "language": "cpp17",
+      "version": 3,
+      "status": "AC",
+      "submitted_at": "2026-10-19T02:22:40.325157Z",
+      "started_at": "2026-10-19T02:22:40.347265Z",
+      "finished_at": "2026-10-19T02:22:45.278491Z",
+      "time_ms": 30,
+      "memory_kb": 3456,
+      "executed_case_count": 3,
+      "passed_case_count": 3,
+      "compiler_output": null
+    },
+    "database": {
+      "status": "AC",
+      "started_at": "2026-10-19 02:22:40.347265+00:00",
+      "finished_at": "2026-10-19 02:22:45.278491+00:00",
+      "updated_at": "2026-10-19 02:22:45.278491+00:00",
+      "retry_count": 0
+    },
+    "wall_duration_ms": 4931.226
+  },
+  {
+    "sample": "AC-4",
+    "pass": true,
+    "expected": "AC",
+    "result": {
+      "id": 15,
+      "assignment_id": 1,
+      "language": "cpp17",
+      "version": 4,
+      "status": "AC",
+      "submitted_at": "2026-10-19T02:22:45.523712Z",
+      "started_at": "2026-10-19T02:22:45.539499Z",
+      "finished_at": "2026-10-19T02:22:49.490095Z",
+      "time_ms": 10,
+      "memory_kb": 3456,
+      "executed_case_count": 3,
+      "passed_case_count": 3,
+      "compiler_output": null
+    },
+    "database": {
+      "status": "AC",
+      "started_at": "2026-10-19 02:22:45.539499+00:00",
+      "finished_at": "2026-10-19 02:22:49.490095+00:00",
+      "updated_at": "2026-10-19 02:22:49.490095+00:00",
+      "retry_count": 0
+    },
+    "wall_duration_ms": 3950.596
+  },
+  {
+    "sample": "AC-5",
+    "pass": true,
+    "expected": "AC",
+    "result": {
+      "id": 16,
+      "assignment_id": 1,
+      "language": "cpp17",
+      "version": 5,
+      "status": "AC",
+      "submitted_at": "2026-10-19T02:22:49.584679Z",
+      "started_at": "2026-10-19T02:22:49.644634Z",
+      "finished_at": "2026-10-19T02:22:53.951965Z",
+      "time_ms": 0,
+      "memory_kb": 3456,
+      "executed_case_count": 3,
+      "passed_case_count": 3,
+      "compiler_output": null
+    },
+    "database": {
+      "status": "AC",
+      "started_at": "2026-10-19 02:22:49.644634+00:00",
+      "finished_at": "2026-10-19 02:22:53.951965+00:00",
+      "updated_at": "2026-10-19 02:22:53.951965+00:00",
+      "retry_count": 0
+    },
+    "wall_duration_ms": 4307.330999999999
+  },
+  {
+    "sample": "WA",
+    "pass": true,
+    "expected": "WA",
+    "result": {
+      "id": 17,
+      "assignment_id": 1,
+      "language": "cpp17",
+      "version": 6,
+      "status": "WA",
+      "submitted_at": "2026-10-19T02:22:54.208184Z",
+      "started_at": "2026-10-19T02:22:54.244878Z",
+      "finished_at": "2026-10-19T02:22:56.035388Z",
+      "time_ms": 0,
+      "memory_kb": 1536,
+      "executed_case_count": 1,
+      "passed_case_count": 0,
+      "compiler_output": null
+    },
+    "database": {
+      "status": "WA",
+      "started_at": "2026-10-19 02:22:54.244878+00:00",
+      "finished_at": "2026-10-19 02:22:56.035388+00:00",
+      "updated_at": "2026-10-19 02:22:56.035389+00:00",
+      "retry_count": 0
+    },
+    "wall_duration_ms": 1790.51
+  },
+  {
+    "sample": "CE",
+    "pass": true,
+    "expected": "CE",
+    "result": {
+      "id": 18,
+      "assignment_id": 1,
+      "language": "cpp17",
+      "version": 7,
+      "status": "CE",
+      "submitted_at": "2026-10-19T02:22:56.310967Z",
+      "started_at": "2026-10-19T02:22:56.334318Z",
+      "finished_at": "2026-10-19T02:22:57.297066Z",
+      "time_ms": null,
+      "memory_kb": null,
+      "executed_case_count": 0,
+      "passed_case_count": 0,
+      "compiler_output": "main.cpp:1:5: error: cannot declare '::main' to be a global variable\n    1 | int main( { invalid syntax }\n      |     ^~~~\nmain.cpp:1:13: error: 'invalid' was not declared in this scope\n    1 | int main( { invalid syntax }\n      |             ^~~~~~~\nmain.cpp:1:21: error: expected '}' before 'syntax'\n    1 | int main( { invalid syntax }\n      |           ~         ^~~~~~\nmain.cpp:1:20: error: expected ')' before 'syntax'\n    1 | int main( { invalid syntax }\n      |         ~          ^~~~~~~\n      |                    )\nmain.cpp:1:28: error: expected declaration before '}' token\n    1 | int main( { invalid syntax }\n      |                            ^\n"
+    },
+    "database": {
+      "status": "CE",
+      "started_at": "2026-10-19 02:22:56.334318+00:00",
+      "finished_at": "2026-10-19 02:22:57.297066+00:00",
+      "updated_at": "2026-10-19 02:22:57.297066+00:00",
+      "retry_count": 0
+    },
+    "wall_duration_ms": 962.748
+  },
+  {
+    "sample": "RE",
+    "pass": true,
+    "expected": "RE",
+    "result": {
+      "id": 19,
+      "assignment_id": 1,
+      "language": "cpp17",
+      "version": 8,
+      "status": "RE",
+      "submitted_at": "2026-10-19T02:22:57.506851Z",
+      "started_at": "2026-10-19T02:22:57.539271Z",
+      "finished_at": "2026-10-19T02:22:59.223579Z",
+      "time_ms": 20,
+      "memory_kb": 1536,
+      "executed_case_count": 1,
+      "passed_case_count": 0,
+      "compiler_output": null
+    },
+    "database": {
+      "status": "RE",
+      "started_at": "2026-10-19 02:22:57.539271+00:00",
+      "finished_at": "2026-10-19 02:22:59.223579+00:00",
+      "updated_at": "2026-10-19 02:22:59.223579+00:00",
+      "retry_count": 0
+    },
+    "wall_duration_ms": 1684.308
+  },
+  {
+    "sample": "TLE",
+    "pass": true,
+    "expected": "TLE",
+    "result": {
+      "id": 20,
+      "assignment_id": 1,
+      "language": "cpp17",
+      "version": 9,
+      "status": "TLE",
+      "submitted_at": "2026-10-19T02:22:59.368868Z",
+      "started_at": "2026-10-19T02:22:59.381834Z",
+      "finished_at": "2026-10-19T02:23:01.752981Z",
+      "time_ms": 500,
+      "memory_kb": 1664,
+      "executed_case_count": 1,
+      "passed_case_count": 0,
+      "compiler_output": null
+    },
+    "database": {
+      "status": "TLE",
+      "started_at": "2026-10-19 02:22:59.381834+00:00",
+      "finished_at": "2026-10-19 02:23:01.752981+00:00",
+      "updated_at": "2026-10-19 02:23:01.752981+00:00",
+      "retry_count": 0
+    },
+    "wall_duration_ms": 2371.147
+  },
+  {
+    "sample": "AC-WAIT",
+    "pass": true,
+    "expected": "AC",
+    "result": {
+      "id": 21,
+      "assignment_id": 1,
+      "language": "cpp17",
+      "version": 10,
+      "status": "AC",
+      "submitted_at": "2026-10-19T02:23:01.971657Z",
+      "started_at": "2026-10-19T02:23:01.983239Z",
+      "finished_at": "2026-10-19T02:23:06.595405Z",
+      "time_ms": 600,
+      "memory_kb": 3584,
+      "executed_case_count": 3,
+      "passed_case_count": 3,
+      "compiler_output": null
+    },
+    "database": {
+      "status": "AC",
+      "started_at": "2026-10-19 02:23:01.983239+00:00",
+      "finished_at": "2026-10-19 02:23:06.595405+00:00",
+      "updated_at": "2026-10-19 02:23:06.595405+00:00",
+      "retry_count": 0
+    },
+    "wall_duration_ms": 4612.166
+  }
+]

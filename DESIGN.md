@@ -1,128 +1,46 @@
 ---
 name: AlgoPeer
-description: A calm, auditable workspace for course grading and cross-class review.
+description: 算法演算场——有视觉表现力的课程入口，清楚、紧凑的学习与评阅工具。
 colors:
-  primary: "#164E63"
-  primary-hover: "#0E3F52"
-  accent: "#D97706"
-  canvas: "#F4F7F8"
+  primary: "#285ED9"
+  primary-hover: "#1948B8"
+  canvas: "#F6F9FF"
   surface: "#FFFFFF"
-  ink: "#17252D"
-  muted: "#52636D"
-  border: "#D5DEE2"
-  success: "#18794E"
-  warning: "#9A5B00"
+  ink: "#14243E"
+  muted: "#53647D"
+  border: "#E0E8F4"
+  success: "#196640"
+  warning: "#80501A"
   danger: "#B42318"
 typography:
-  headline:
-    fontFamily: "Inter, Microsoft YaHei, system-ui, sans-serif"
-    fontSize: "1.75rem"
-    fontWeight: 700
-    lineHeight: 1.25
-  body:
-    fontFamily: "Inter, Microsoft YaHei, system-ui, sans-serif"
-    fontSize: "1rem"
-    fontWeight: 400
-    lineHeight: 1.6
-  label:
-    fontFamily: "Inter, Microsoft YaHei, system-ui, sans-serif"
-    fontSize: "0.875rem"
-    fontWeight: 600
-    lineHeight: 1.4
+  family: "Segoe UI, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
 rounded:
-  sm: "6px"
-  md: "10px"
-  lg: "14px"
-spacing:
-  xs: "4px"
-  sm: "8px"
-  md: "16px"
-  lg: "24px"
-  xl: "32px"
-components:
-  button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.surface}"
-    rounded: "{rounded.sm}"
-    padding: "10px 16px"
-  input:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
-    padding: "10px 12px"
+  control: "14px"
+  surface: "26px"
 ---
 
-# Design System: AlgoPeer
+# AlgoPeer · 算法演算场
 
-## Overview
+2026-10-16 用户确认的蓝白渐变、曲面构图取代此前的深青导航、分色档案夹、小圆角方案。实施规则见 [MASTER.md](design-system/algopeer/MASTER.md)，实际变量见 `frontend/src/workspace.css`。
 
-**Creative North Star: "The Grading Desk"**
+## 核心原则
 
-AlgoPeer should resemble a carefully organized teacher's desk: the current task is obvious, source material is close at hand, and every decision leaves a trace. The interface is restrained and work-focused, with enough density for real course administration without becoming a decorative analytics wall.
+算法结构和代码本身成为画面。该有图片时放最相关的图，让图片、排版和内容共同构图；不是“漂亮登录页 + 没有图片的后台”。不以五人协作评审作为宣传插画主题。
 
-**Key Characteristics:**
-- Calm hierarchy and compact, readable forms.
-- Explicit workflow states and blocking reasons.
-- Evidence beside decisions, never hidden behind an AI score.
-- Structural responsiveness rather than shrinking desktop layouts.
+- 登录：约三分之一真实表单、三分之二大标题与归并排序演算。桌面不使用等大的两张宣传卡片；手机独立编排标题、表单、算法图。
+- 学生首页：优先展开开放且尚待完成的真实作业，其余紧凑列表；保留筛选、搜索、真实截止日期、提交和发布状态。
+- 教师首页：评分与评审待办、最近作业、对应课程内容；不重复大宣传横幅。
+- 编程页：题目、代码并列；只有识别出相关主题时才附算法示意，并明确不是题目测试数据。
+- 评阅页：真实材料清单、视频/文本预览与评分区域相邻；没有材料时如实显示空状态，不造图片。
 
-## Colors
+## 动画与图片
 
-Deep teal carries navigation and primary actions; amber is reserved for attention and review. Neutral surfaces keep long grading sessions comfortable.
+登录插画是原生 SVG 与真实四项归并排序轨迹，不依赖外部生图服务。拆分、比较、合并与代码高亮同步，提供暂停、步进和重播。离屏或文档隐藏时暂停，减少动态效果设置下关闭自动播放和位移动画，仍可手动查看步骤。
 
-**The One Accent Rule.** Accent color marks a decision or exception, never decoration.
+作业封面按归并、动态规划、图、树/递归、整数求和、微课项目和一般代码分型。它们是课程主题插画，不是标准答案、测试数据或学生提交的作品。评阅区使用实际提交内容，不用通用宣传图替代。
 
-## Typography
+## 边界
 
-**Display Font:** Inter with Microsoft YaHei and system fallbacks
-**Body Font:** Inter with Microsoft YaHei and system fallbacks
+此轮不改变 API、认证、角色权限、作业状态机、评分算法或发布条件。不提前展示未发布分数，不伪造课程数据，不增添不存在的教学演示功能。匿名评审规则不变；教师原始分、五人评分、聚合分与异常证据继续可查。
 
-The single sans-serif family keeps Chinese and Latin UI labels consistent. Headings are firm but never oversized; body copy stays within 75 characters where it reads as prose.
-
-## Elevation
-
-The system is flat by default. Borders and tonal surface changes establish structure; a soft shadow appears only for menus and raised dialogs.
-
-**The Flat-at-Rest Rule.** A grid of floating cards is prohibited; grouping must reflect workflow or data ownership.
-
-## Components
-
-### Buttons
-- Primary actions use deep teal, compact padding, and a visible focus ring.
-- Destructive actions require explicit wording and use danger color only at the decision point.
-
-### Cards / Containers
-- Surfaces use 10–14px corners, one-pixel borders, and workflow-based grouping.
-
-### Inputs / Fields
-- Inputs use persistent labels, clear help text, inline validation, and do not rely on placeholders.
-
-### Navigation
-- Desktop uses a stable left workspace rail; narrow screens collapse it into a top navigation region without hiding the current page title.
-
-## Do's and Don'ts
-
-### Do:
-- **Do** show status text alongside color.
-- **Do** explain review findings in plain Chinese, with score comparisons available on demand. Keep model versions, API configuration, and runtime diagnostics in administrator documentation.
-- **Do** preserve keyboard focus and 44px touch targets for primary controls.
-
-### Don't:
-- **Don't** use decorative analytics dashboards, neon AI aesthetics, glassmorphism, or oversized vanity metrics.
-- **Don't** use colored side-stripe borders or gradient text.
-- **Don't** present automated analysis as a final grade.
-
-
-## Teacher workspace refinements (2026-10-13)
-
-- Teachers should see their assignments and next action first. Keep headings literal and remove marketing slogans and architecture explanations.
-- Use a white navigation rail, quiet teal selection states, small line icons, and a light gray workspace. Group content by task, not by implementation module.
-- The login page has one centered form. Class and topic creation forms open only when requested.
-- Show assignment search and status filters above the list. Put the next workflow action before detailed configuration.
-- Review evidence uses readable reasons and rubric score comparisons. Preserve zero values and distinguish missing values; do not display a fallback result as an available model estimate.
-- Keep service configuration and API credentials out of the teacher interface. Show availability and a useful route back to coursework.
-
-References used for task organization:
-- [Google Classroom: teacher work and review status](https://support.google.com/edu/classroom/answer/9157286?hl=zh-CN)
-- [Moodle: viewing and grading an assignment](https://docs.moodle.org/501/en/Viewing_an_assignment)
-- [Canvas: Gradebook](https://community.instructure.com/en/kb/articles/660826-how-do-i-use-the-gradebook)
+不为本次样式调整新增运行依赖；Vue、CSS、SVG 足以支持当前动效。旧图片文件未作无关删除，当前入口不再加载旧外部插图。

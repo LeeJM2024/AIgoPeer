@@ -1,0 +1,32 @@
+{
+  "ppt_path": "slides.pptx",
+  "video_path": "video.mp4",
+  "readme_path": "README.md",
+  "source_paths": [
+    "src/main.cpp"
+  ],
+  "examples": [
+    {
+      "location": "PPT",
+      "pages": [
+        2,
+        3,
+        4
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "input_path": "tests/1.in",
+      "expected_path": "tests/1.out"
+    },
+    {
+      "input_path": "tests/2.in",
+      "expected_path": "tests/2.out"
+    },
+    {
+      "input_path": "tests/3.in",
+      "expected_path": "tests/3.out"
+    }
+  ]
+}

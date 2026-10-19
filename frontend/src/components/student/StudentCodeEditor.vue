@@ -37,8 +37,11 @@ function syncScroll(event) {
 </template>
 
 <style scoped>
-.code-editor { display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 360px; overflow: hidden; border: 1px solid #4b7862; border-radius: 9px; background: #09281e; }
-.code-editor__gutter { min-width: 3.4em; height: 360px; margin: 0; padding: 14px 10px; overflow: hidden; border-right: 1px solid #255641; color: #78a48b; background: #08251c; font: 13px/1.5 Consolas, "Cascadia Code", monospace; text-align: right; user-select: none; }
-.code-editor__input { width: 100%; min-height: 360px; padding: 14px; border: 0; outline: 0; resize: vertical; color: #e8f2ed; background: transparent; font: 13px/1.5 Consolas, "Cascadia Code", monospace; tab-size: 2; }
+.code-editor { display: grid; grid-template-columns: auto minmax(0,1fr); min-height: 360px; overflow: hidden; border: 1px solid var(--code-bg); border-radius: 9px; background: var(--code-bg); }
+.code-editor:focus-within { outline: 2px solid var(--primary); outline-offset: 3px; }
+.code-editor__gutter { min-width: 3.4em; height: 360px; margin: 0; padding: 14px 10px; overflow: hidden; border-right: 1px solid #405263; color: #a5b6c7; background: var(--code-bg); font: 14px/1.6 Consolas, 'Cascadia Code', monospace; text-align: right; user-select: none; }
+.code-editor__input { width: 100%; min-height: 360px; padding: 14px; border: 0; outline: 0; resize: vertical; color: var(--code-ink); background: transparent; font: 14px/1.6 Consolas, 'Cascadia Code', monospace; tab-size: 2; box-shadow: none; }
+.code-editor__input:focus { box-shadow: none; }
+.code-editor__input::placeholder { color: #a5b6c7; }
 .code-editor__input:disabled { cursor: not-allowed; opacity: .72; }
 </style>

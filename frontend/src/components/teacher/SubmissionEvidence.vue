@@ -235,8 +235,12 @@ async function open(item, download = false) {
 .material-preview {
   background: var(--canvas, #f7f9fa);
   padding: 12px;
+  border-radius: 18px;
 }
 video {
+  display: block;
+  border-radius: 14px;
+  background: var(--code-bg);
   width: 100%;
   max-height: 420px;
   margin-top: 12px;

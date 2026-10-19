@@ -133,6 +133,25 @@ def test_archive_filename_must_match_current_claim() -> None:
     assert exc_info.value.status_code == 422
 
 
+@pytest.mark.parametrize("student_no,name,topic", [
+    ("VERIFY-A04", "合成A04", "R01"),
+    ("A_04", "合成_学生", "A_b-1234"),
+    ("A04", "学生", "91"),
+])
+def test_archive_filename_accepts_configured_topic_and_identity(student_no, name, topic):
+    context = UploadContext(1, 1, 1, 1, student_no, name, topic)
+    filename = f"{student_no}_{name}_{topic}.zip"
+    assert validate_archive_filename(file_name=filename, context=context) == filename
+
+
+@pytest.mark.parametrize("filename", [None, "A04_学生_R02.zip", "A05_学生_R01.zip",
+    "A04_别人_R01.zip", "A04_学生_R01.ZIP", "../A04_学生_R01.zip", "dir\\A04_学生_R01.zip"])
+def test_archive_filename_rejects_mismatch_and_paths(filename):
+    with pytest.raises(HTTPException) as error:
+        validate_archive_filename(file_name=filename, context=UploadContext(1, 1, 1, 1, "A04", "学生", "R01"))
+    assert error.value.status_code == 422
+
+
 class MaterialCheckDbResult:
     def __init__(self, row: dict[str, object]) -> None:
         self.row = row

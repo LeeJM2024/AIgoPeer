@@ -60,9 +60,9 @@ def _store_result(db, submission_id: int, result) -> None:
         text(
             """
             UPDATE code_submissions
-            SET status = :status, finished_at = now(), time_ms = :time_ms, memory_kb = :memory_kb,
+            SET status = :status, finished_at = clock_timestamp(), time_ms = :time_ms, memory_kb = :memory_kb,
                 executed_case_count = :executed_case_count, passed_case_count = :passed_case_count,
-                compiler_output = :compiler_output, updated_at = now()
+                compiler_output = :compiler_output, updated_at = clock_timestamp()
             WHERE id = :submission_id
             """
         ),
@@ -98,7 +98,7 @@ def _retry_or_fail(db, submission_id: int, retry_count: int) -> bool:
         text(
             """
             UPDATE code_submissions
-            SET status = 'SYSTEM_ERROR', finished_at = now(), updated_at = now()
+            SET status = 'SYSTEM_ERROR', finished_at = clock_timestamp(), updated_at = clock_timestamp()
             WHERE id = :submission_id
             """
         ),

@@ -37,5 +37,20 @@ const statusLabel = (value) => ({
 </template>
 
 <style scoped>
-.result { margin-top: 20px; padding: 16px; border: 1px solid #4b7862; border-radius: 9px; background: #0c3326; }.result--AC { border-color: #4ade80; }.result--SYSTEM_ERROR { border-color: #facc15; }.result--WA, .result--RE, .result--TLE, .result--CE { border-color: #f59e8b; }.result__heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }.result h3 { margin: 5px 0; }.eyebrow { margin: 0; color: #9fcbb0; font-size: 12px; }.status-pill { padding: 4px 8px; border-radius: 999px; color: #d9fbe4; background: #1d6247; font-size: 12px; white-space: nowrap; }.result p { color: #c5dbcf; line-height: 1.55; }.result dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }.result dt { color: #9fcbb0; font-size: 12px; }.result dd { margin: 4px 0 0; }.compiler-output { max-height: 180px; overflow: auto; padding: 10px; border-radius: 6px; color: #fecaca; background: #09281e; white-space: pre-wrap; }.refresh-button { margin-top: 2px; border: 1px solid #76b78f; border-radius: 7px; padding: 8px 11px; color: #e8f8ed; background: transparent; font-weight: 700; cursor: pointer; }.refresh-button:disabled { cursor: not-allowed; opacity: .65; } @media (max-width: 760px) { .result dl { grid-template-columns: 1fr; } }
+.result { margin-top: 22px; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-subtle); color: var(--ink); }
+.result--AC { border-color: #a4ceb6; background: var(--success-soft); }
+.result--SYSTEM_ERROR { border-color: #ddc48f; background: var(--warning-soft); }
+.result--WA, .result--RE, .result--TLE, .result--CE { border-color: #ecc8c3; background: var(--danger-soft); }
+.result__heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.result h3 { margin: 5px 0; }
+.eyebrow { margin: 0; color: var(--muted); font-size: 11px; }
+.result--AC .status-pill { color: var(--success); background: white; }
+.result--WA .status-pill, .result--RE .status-pill, .result--TLE .status-pill, .result--CE .status-pill { color: var(--danger); background: white; }
+.result p { color: var(--muted); line-height: 1.7; font-size: 13px; }
+.result dl { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin-bottom: 0; }
+.result dt { color: var(--muted); font-size: 11px; }
+.result dd { margin: 5px 0 0; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.compiler-output { max-height: 220px; overflow: auto; padding: 14px; border-radius: 7px; color: var(--danger); background: var(--surface); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 Consolas, monospace; }
+.refresh-button { min-height: 40px; padding: 8px 12px; border: 1px solid var(--input-border); border-radius: 7px; color: var(--primary); background: var(--surface); font-weight: 600; }
+@media (max-width: 600px) { .result dl { grid-template-columns: minmax(0,1fr); } }
 </style>

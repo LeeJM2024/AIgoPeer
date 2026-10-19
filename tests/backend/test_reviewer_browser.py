@@ -91,7 +91,7 @@ def test_task_gated_reviewer_workflow(
                     ).scalar_one()
                     == 1
                 )
-            page.get_by_role("button", name="退出", exact=True).click()
+            page.get_by_role("button", name="退出登录", exact=True).click()
             login("NO-TASK")
             expect(page.get_by_role("link", name="评审任务", exact=True)).to_have_count(
                 0

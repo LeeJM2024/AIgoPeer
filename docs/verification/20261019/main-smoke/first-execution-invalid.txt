@@ -1,0 +1,20 @@
+{"case": "merged-version-and-runtime", "pass": true}
+{"case": "teacher-incompatible-return", "pass": true}
+{"case": "student-incompatible-return", "pass": true}
+Traceback (most recent call last):
+  File "D:\算法大作业\AIgoPeer\tmp\verification\fix-20261018\main_smoke.py", line 126, in <module>
+    asyncio.run(browser_checks())
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "D:\python\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "D:\python\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\python\Lib\asyncio\base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "D:\算法大作业\AIgoPeer\tmp\verification\fix-20261018\main_smoke.py", line 68, in browser_checks
+    assert '通过' in await page.locator('main').inner_text()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

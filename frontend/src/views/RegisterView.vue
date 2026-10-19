@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { register } from '../api/auth'
-import UiIcon from '../components/UiIcon.vue'
+import AuthExperience from '../components/AuthExperience.vue'
 
 const studentNo = ref('')
 const name = ref('')
@@ -39,8 +39,7 @@ async function submit() {
 </script>
 
 <template>
-  <section class="auth-layout" aria-labelledby="register-title">
-    <header class="login-brand"><span class="brand-mark"><UiIcon name="book" /></span><strong>AlgoPeer</strong></header>
+  <AuthExperience>
     <section v-if="registered" class="auth-form">
       <h1 id="register-title">注册成功</h1>
       <p class="notice notice-success" role="status">账号已创建，请使用学号和刚设置的密码登录。</p>
@@ -50,7 +49,7 @@ async function submit() {
     <form v-else class="auth-form" @submit.prevent="submit">
       <div class="login-heading">
         <h1 id="register-title">学生注册</h1>
-        <p class="muted">创建你的课程账号</p>
+        <p class="muted">创建你的账号，加入班级后即可查看课程作业。</p>
       </div>
       <label>学号<input v-model="studentNo" autocomplete="username" placeholder="请输入本人学号" autocapitalize="none" spellcheck="false" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*" title="学号最多32位，可包含字母、数字、点、下划线和短横线" :disabled="busy" required /></label>
       <label>姓名<input v-model="name" autocomplete="name" placeholder="请输入姓名" maxlength="100" :disabled="busy" required /></label>
@@ -62,5 +61,5 @@ async function submit() {
       <p class="form-help">已有账号？<RouterLink to="/login">返回登录</RouterLink></p>
     </form>
     <p class="login-caption">教师账号由课程管理员提供</p>
-  </section>
+  </AuthExperience>
 </template>

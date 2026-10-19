@@ -1,4 +1,5 @@
 <script setup>
+import AssignmentArtwork from '../../components/AssignmentArtwork.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import ProjectSubmissionHistory from '../../components/student/ProjectSubmissionHistory.vue'
@@ -43,6 +44,7 @@ const deadlinePassed = computed(() => assignment.value?.submit_deadline &&
   new Date(assignment.value.submit_deadline).getTime() <= now.value)
 const canSubmit = computed(() => assignment.value?.can_submit && !deadlinePassed.value)
 const formatTime = (value) => value ? new Date(value).toLocaleString('zh-CN') : '未设置'
+const materialStatusLabel = (status) => ({ VALID: '通过', INVALID: '未通过', PENDING: '检查中' }[status] || status)
 
 function stopPolling() {
   window.clearTimeout(pollTimer)
@@ -228,9 +230,10 @@ onBeforeUnmount(() => {
 <template>
   <section class="card submission-page">
     <RouterLink class="back-link" to="/student">← 返回我的作业</RouterLink>
-    <p class="eyebrow">期末项目作业</p>
+    <header class="project-intro"><div><p class="eyebrow">期末项目作业</p>
     <h1>认领并上传</h1>
     <p>先认领一个知识点，再提交符合命名规范的 ZIP 作业包。</p>
+    </div><figure v-if="assignment"><AssignmentArtwork :assignment="{ title: claim?.topic?.name || assignment.title, type: 'FINAL_PROJECT' }" /><figcaption>算法主题插画 · 以认领知识点要求为准</figcaption></figure></header>
     <template v-if="assignment">
       <p>{{ assignment.title }} · 提交截止：{{ formatTime(assignment.submit_deadline) }}</p>
       <p v-if="!canSubmit" class="hint" role="status">{{ deadlinePassed ? '作业已截止。' : '当前阶段不允许上传。' }}已有提交和材料检查结果仍可查看。</p>
@@ -294,7 +297,7 @@ onBeforeUnmount(() => {
       <p v-if="checkError" class="error" role="alert">材料检查结果加载失败：{{ checkError }}，请点击“刷新提交状态”重试。</p>
       <p v-if="pollingStopped && materialCheck?.status === 'PENDING'" class="hint" role="status">材料仍在检查中，自动刷新已停止，请点击“刷新提交状态”继续查询。</p>
       <template v-if="materialCheck">
-      <h3>材料检查结果：{{ materialCheck.status }}</h3>
+      <h3>材料检查结果：{{ materialStatusLabel(materialCheck.status) }}</h3>
       <p v-if="materialCheck.status === 'PENDING'">正在后台检查，请稍候。</p>
       <p v-else-if="materialCheck.status === 'VALID'">必交材料路径已通过自动完整性检查。</p>
       <p v-else>材料尚不完整，请根据缺失项修正后重新上传。</p>
@@ -309,22 +312,32 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.submission-page { display: grid; gap: 16px; }
-.back-link { color: #0d4d3a; text-decoration: none; font-weight: 600; }
-.eyebrow { margin: 0; color: #276749; font-size: 14px; font-weight: 700; }
+.submission-page { display: grid; grid-template-columns: minmax(0,1fr); gap: 16px; }
+.project-intro { display: grid; grid-template-columns: minmax(0,1fr) 300px; align-items: center; gap: 28px; }
+.project-intro h1 { margin-top: 12px; font-size: 32px; }
+.project-intro p { color: var(--muted); line-height: 1.8; }
+.project-intro figure { margin: 0; background: var(--art-gradient); border-radius: 24px 64px 24px 24px; padding: 12px; }
+.project-intro :deep(svg) { width: 100%; height: 160px; display: block; }
+.project-intro figcaption { font-size: 12px; color: var(--muted); text-align: center; }
+.submission-page > *, .form-section > *, .check-result > * { min-width: 0; }
+.back-link { width: fit-content; display: inline-flex; align-items: center; min-height: 32px; color: var(--muted); font-size: 12px; text-decoration: none; }
+.back-link:hover { color: var(--primary); }
+.eyebrow { margin: 0; color: var(--primary); font-size: 12px; font-weight: 600; }
 h1, h2 { margin: 0; }
-.form-section, .check-result { display: grid; gap: 12px; padding: 20px; border: 1px solid #d7e5dc; border-radius: 10px; }
-.claim-summary, .success { margin: 0; color: #17603f; font-weight: 600; }
-.hint { margin: 0; color: #667085; font-size: 14px; }
-label { display: grid; gap: 6px; color: #344054; font-size: 14px; font-weight: 600; }
-input, select, textarea { width: 100%; padding: 9px; border: 1px solid #98b9a5; border-radius: 6px; font: inherit; }
-.field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-fieldset { display: grid; gap: 8px; margin: 0; padding: 12px; border: 1px solid #d7e5dc; border-radius: 8px; }
-legend { padding: 0 4px; color: #344054; font-size: 14px; font-weight: 600; }
+.form-section, .check-result { display: grid; grid-template-columns: minmax(0,1fr); gap: 16px; padding: 24px; border: 0; background: var(--surface-subtle); border-radius: 24px; }
+.check-result { background: var(--surface-subtle); }
+.claim-summary, .success { margin: 0; color: var(--success); font-weight: 600; }
+.hint { margin: 0; color: var(--muted); font-size: 13px; }
+.submission-page > p { margin-bottom: 0; color: var(--muted); }
+.submission-page > .error, .error { color: var(--danger); }
+.submission-page > .success { color: var(--success); }
+.field-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+fieldset { display: grid; gap: 12px; margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: 8px; }
+input[type=file] { background: var(--surface-subtle); border-style: dashed; padding: 16px; }
+input[type=file]::file-selector-button { margin-right: 12px; padding: 7px 12px; border: 1px solid var(--input-border); background: var(--surface); color: var(--ink); border-radius: 6px; cursor: pointer; }
 .test-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .upload-fields { padding: 0; border: 0; }
-.error { color: #b42318; }
-button { justify-self: start; padding: 9px 14px; border: 0; border-radius: 6px; color: white; background: #0d4d3a; cursor: pointer; }
-button:disabled { cursor: not-allowed; opacity: .6; }
-@media (max-width: 680px) { .field-grid, .test-row { grid-template-columns: 1fr; } }
+button { justify-self: start; min-height: 44px; padding: 9px 15px; border: 1px solid var(--primary); border-radius: 14px; color: white; background: var(--primary); font-size: 13px; font-weight: 550; }
+button:hover:not(:disabled) { background: var(--primary-hover); }
+@media (max-width: 680px) { .project-intro, .field-grid, .test-row { grid-template-columns: minmax(0,1fr); } .project-intro figure { max-width: 100%; } .form-section, .check-result { padding: 16px; } }
 </style>

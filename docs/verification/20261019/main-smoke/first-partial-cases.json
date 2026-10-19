@@ -1,0 +1,39 @@
+[
+  {
+    "case": "merged-version-and-runtime",
+    "pass": true,
+    "actual": {
+      "branch": "main",
+      "head": "5dc1f91c6561fbb382b347568a3850cb41b5c9ac",
+      "tree_matches_repair_branch": true,
+      "runtime_normalized_hashes": {
+        "backend": {
+          "app/services/judge_runner.py": "14d3b9405edc11ad19ed76f0fad2b360728e1270dfaa01b5dcf045c6217c9745",
+          "app/workers/judge_worker.py": "f3ebc778ab2176aec0e6f7f35c947007c385ac5d442bfc1dc93dbe8f5a1c6e46",
+          "app/services/student/project_submission_service.py": "9c3f4a23ff6b51f373b9f85c7136e6c27bfb3c993a2fd7bf35f86a191d31d935"
+        },
+        "worker": {
+          "app/services/judge_runner.py": "14d3b9405edc11ad19ed76f0fad2b360728e1270dfaa01b5dcf045c6217c9745",
+          "app/workers/judge_worker.py": "f3ebc778ab2176aec0e6f7f35c947007c385ac5d442bfc1dc93dbe8f5a1c6e46",
+          "app/services/student/project_submission_service.py": "9c3f4a23ff6b51f373b9f85c7136e6c27bfb3c993a2fd7bf35f86a191d31d935"
+        }
+      }
+    }
+  },
+  {
+    "case": "teacher-incompatible-return",
+    "pass": true,
+    "actual": {
+      "path": "/teacher",
+      "teacher_navigation": true
+    }
+  },
+  {
+    "case": "student-incompatible-return",
+    "pass": true,
+    "actual": {
+      "path": "/student",
+      "student_workspace": true
+    }
+  }
+]
