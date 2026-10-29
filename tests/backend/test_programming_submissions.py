@@ -17,7 +17,17 @@ from app.schemas.programming import (
     ProgrammingProblemView,
     PublicSample,
 )
+from app.services.assignment_lifecycle import enforce_assignment_lifecycle
 from app.services.judge_runner import _normalized_output
+
+
+@pytest.fixture(autouse=True)
+def mocked_lifecycle():
+    # These tests replace the application services and use no database.
+    # Real lifecycle authorization is exercised by test_assignment_lifecycle.
+    app.dependency_overrides[enforce_assignment_lifecycle] = lambda: None
+    yield
+    app.dependency_overrides.pop(enforce_assignment_lifecycle, None)
 
 
 class UnusedDb:

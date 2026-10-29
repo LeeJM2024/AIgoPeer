@@ -18,12 +18,16 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture
-def browser_app(grading_course):
+def browser_app(grading_course, monkeypatch):
     import uvicorn
+    from app.core.config import settings
     from app.core.security import get_current_user, hash_password
     from app.main import app
 
     c = grading_course
+    monkeypatch.setattr(
+        settings, "cors_origins", f"{settings.cors_origins},http://127.0.0.1:15173"
+    )
     with c["engine"].begin() as conn:
         conn.execute(
             text("UPDATE users SET password_hash=:password WHERE id=:id"),
@@ -132,7 +136,9 @@ def test_real_teacher_workflow(browser_app, width, height, tmp_path, monkeypatch
             expect(page.get_by_label("账号", exact=True)).to_be_empty()
             page.get_by_label("账号", exact=True).fill("TEST-TEACHER")
             page.get_by_label("密码", exact=True).fill("Test-browser-123!")
-            page.get_by_role("button", name="登录", exact=True).click()
+            with page.expect_response("**/api/auth/login") as login_response:
+                page.get_by_role("button", name="登录", exact=True).click()
+            assert login_response.value.status == 200, login_response.value.text()
             page.wait_for_url("**/teacher")
             expect(page.locator(".metric-strip")).to_be_visible()
             page.wait_for_load_state("networkidle")
@@ -148,12 +154,12 @@ def test_real_teacher_workflow(browser_app, width, height, tmp_path, monkeypatch
             page.get_by_role("button", name="关闭预览", exact=True).click()
             expect(page.get_by_role("button", name="发布全部成绩")).to_be_disabled()
             page.locator(".score-input input").fill("90")
-            page.get_by_label("教师反馈", exact=True).fill("已核对原始材料。")
+            page.get_by_label("教师反馈（选填）", exact=True).fill("已核对原始材料。")
             page.get_by_role("button", name="保存教师评分", exact=True).click()
             page.get_by_role("button", name="锁定当前评分", exact=True).click()
             page.get_by_role("button", name="创建更正版本", exact=True).click()
             page.locator(".score-input input").fill("95")
-            page.get_by_label("更正原因", exact=True).fill("复核例题步骤后更正")
+            page.get_by_label("更正原因（选填）", exact=True).fill("复核例题步骤后更正")
             page.get_by_role("button", name="保存更正版本", exact=True).click()
             page.get_by_role("button", name="锁定当前评分", exact=True).click()
             expect(page.locator(".grade-history summary").first).to_contain_text("v2")
@@ -181,7 +187,7 @@ def test_real_teacher_workflow(browser_app, width, height, tmp_path, monkeypatch
                 page.get_by_role("heading", name="高风险作品复核最终分")
             ).to_be_visible()
             page.get_by_label("复核最终分", exact=True).fill("91")
-            page.get_by_label("复核理由", exact=True).fill(
+            page.get_by_label("复核理由（选填）", exact=True).fill(
                 "已核对教师初评、同伴评分与异常证据。"
             )
             page.get_by_role("button", name="锁定复核最终分", exact=True).click()

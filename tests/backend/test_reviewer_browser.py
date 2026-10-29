@@ -15,6 +15,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.parametrize("width,height", [(1440, 1000), (1024, 768)])
+@pytest.mark.parametrize("grading_course", ["pending"], indirect=True)
 def test_task_gated_reviewer_workflow(
     browser_app, tmp_path, monkeypatch, width, height
 ):
@@ -29,10 +30,9 @@ def test_task_gated_reviewer_workflow(
         archive.writestr("materials/001.md", "Anonymous algorithm explanation")
     with c["engine"].begin() as conn:
         conn.execute(text("UPDATE assignments SET status='REVIEWER_GRADING'"))
-        conn.execute(text("UPDATE review_tasks SET status='PENDING',submitted_at=NULL"))
         conn.execute(
             text("UPDATE users SET password_hash=:p WHERE id=:u"),
-            {"p": hash_password("Test-browser-123!"), "u": c["reviewers"][1][0]},
+            {"p": hash_password("Test-browser-123!"), "u": c["reviewers"][1][1]},
         )
         conn.execute(
             text("""INSERT INTO users(student_no,name,password_hash,system_role)
@@ -56,12 +56,14 @@ def test_task_gated_reviewer_workflow(
             page.wait_for_load_state("networkidle")
             page.get_by_label("账号", exact=True).fill(account)
             page.get_by_label("密码", exact=True).fill("Test-browser-123!")
-            page.get_by_role("button", name="登录", exact=True).click()
+            with page.expect_response("**/api/auth/login") as login_response:
+                page.get_by_role("button", name="登录", exact=True).click()
+            assert login_response.value.status == 200, login_response.value.text()
             page.wait_for_url("**/student")
             page.wait_for_load_state("networkidle")
 
         try:
-            login("TEST-1-0")
+            login("TEST-1-1")
             page.get_by_role("link", name="评审任务", exact=True).click()
             expect(page.get_by_role("heading", name="我的评审任务")).to_be_visible()
             expect(
@@ -83,6 +85,9 @@ def test_task_gated_reviewer_workflow(
             )
             page.get_by_role("button", name="提交评分", exact=True).click()
             expect(page.get_by_role("status")).to_contain_text("评分已提交")
+            expect(page.get_by_role("button", name="修改评分", exact=True)).to_be_visible()
+            expect(page.locator(".score-input input")).to_be_disabled()
+            page.get_by_role("button", name="待完成", exact=True).click()
             expect(page.locator(".empty-state")).to_contain_text("没有待完成")
             with c["engine"].connect() as conn:
                 assert (

@@ -17,13 +17,13 @@ def as_user(c, user, role="STUDENT"):
     return c["client"]
 
 
-def test_fixed_weights_rejected_at_api_and_database(course):
+def test_weights_configurable_in_draft_and_frozen_after_publication(course):
     c = course
     response = c["client"].post(
         "/api/teacher/assignments",
         json={**c["payload"], "teacher_weight": 0.7, "designated_review_weight": 0.3},
     )
-    assert response.status_code == 422
+    assert response.status_code == 201, response.text
     detail = c["client"].get(f"/api/teacher/assignments/{c['id']}").json()["data"]
     response = c["client"].put(
         f"/api/teacher/assignments/{c['id']}",
@@ -34,7 +34,31 @@ def test_fixed_weights_rejected_at_api_and_database(course):
             "designated_review_weight": 0,
         },
     )
-    assert response.status_code == 422
+    assert response.status_code == 200, response.text
+    detail = c["client"].get(f"/api/teacher/assignments/{c['id']}").json()["data"]
+    assert float(detail["teacher_weight"]) == 1
+    assert float(detail["designated_review_weight"]) == 0
+    invalid = c["client"].post(
+        "/api/teacher/assignments",
+        json={**c["payload"], "teacher_weight": 0.7, "designated_review_weight": 0.4},
+    )
+    assert invalid.status_code == 422
+    with pytest.raises(DBAPIError), c["engine"].begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE assignments SET teacher_weight=.7,designated_review_weight=.4 WHERE id=:id"
+            ),
+            {"id": c["id"]},
+        )
+    assert (
+        c["client"].post(f"/api/teacher/assignments/{c['id']}/publish").status_code
+        == 200
+    )
+    response = c["client"].put(
+        f"/api/teacher/assignments/{c['id']}",
+        json={**c["payload"], "expected_updated_at": detail["updated_at"]},
+    )
+    assert response.status_code == 409
     with pytest.raises(DBAPIError), c["engine"].begin() as conn:
         conn.execute(
             text(
@@ -159,22 +183,22 @@ def test_reviewer_download_failure_does_not_start_and_submit_is_atomic(
         )
 
 
-def test_historical_submission_does_not_grant_review_access(
+def test_assigned_submission_cannot_be_superseded_while_review_is_active(
     course, tmp_path, monkeypatch
 ):
     c = course
     reviewer, _, task, _ = _review_task(c, tmp_path, monkeypatch)
     client = as_user(c, reviewer)
-    with c["engine"].begin() as conn:
+    with pytest.raises(DBAPIError), c["engine"].begin() as conn:
         conn.execute(
             text("UPDATE submissions SET is_current=false,status='SUPERSEDED'")
         )
     assert client.get("/api/reviewer/eligibility").json()["data"] == {
-        "has_tasks": False
+        "has_tasks": True
     }
     assert (
         client.get(f"/api/reviewer/review-tasks/{task}/materials/archive").status_code
-        == 403
+        == 200
     )
 
 
@@ -274,115 +298,41 @@ def test_final_review_requires_locked_initial_grade_and_same_teacher(course):
     )
 
 
-def test_policy_upgrade_preserves_published_history_and_audits_unfinished(course):
+def test_random_migration_requires_cleared_legacy_assignments(pg_engine):
     from alembic import command
     from alembic.config import Config
 
-    c = course
     config = Config()
     config.set_main_option(
         "script_location", str(Path(__file__).resolve().parents[2] / "backend/alembic")
     )
-    with c["engine"].begin() as conn:
+    with pg_engine.begin() as conn:
         config.attributes["connection"] = conn
-        command.downgrade(config, "20261010_0007")
-        conn.execute(
+        command.downgrade(config, "20261022_0009")
+        teacher = conn.execute(
             text(
-                "UPDATE assignments SET teacher_weight=.7,designated_review_weight=.3 WHERE id=:a"
-            ),
-            {"a": c["id"]},
-        )
-        historical = conn.execute(
-            text(
-                "INSERT INTO assignments(title,type,status,teacher_weight,designated_review_weight,created_by) VALUES ('已发布历史','FINAL_PROJECT','PUBLISHED_RESULT',.8,.2,:u) RETURNING id"
-            ),
-            {"u": c["teacher"]},
+                "INSERT INTO users(student_no,name,password_hash,system_role) VALUES ('MIGRATE','教师','unused','TEACHER') RETURNING id"
+            )
         ).scalar_one()
-        command.upgrade(config, "head")
-        assert (
-            float(
-                conn.execute(
-                    text("SELECT teacher_weight FROM assignments WHERE id=:a"),
-                    {"a": c["id"]},
-                ).scalar_one()
-            )
-            == 0.6
-        )
-        assert (
-            float(
-                conn.execute(
-                    text("SELECT teacher_weight FROM assignments WHERE id=:a"),
-                    {"a": historical},
-                ).scalar_one()
-            )
-            == 0.8
-        )
-        assert (
-            conn.execute(
-                text(
-                    "SELECT count(*) FROM audit_logs WHERE action='MIGRATE_FIXED_REVIEW_POLICY'"
-                )
-            ).scalar_one()
-            == 1
-        )
-
-
-def test_real_low_evidence_persists_and_old_runs_backfill_without_duplicates(course):
-    c = reviewed_course(course)
-    with c["engine"].begin() as conn:
-        for class_index in range(2):
-            panel = c["panel_ids"][class_index]
-            for number in (1, 2):
-                sid = conn.execute(
-                    text("""INSERT INTO submissions(assignment_id,author_id,class_id,status,anonymous_token)
-                    VALUES (:a,:u,:c,'VALID',:token) RETURNING id"""),
-                    {
-                        "a": c["id"],
-                        "u": c["reviewers"][class_index][number],
-                        "c": c["classes"][class_index],
-                        "token": f"MORE-{class_index}-{number}",
-                    },
-                ).scalar_one()
-                conn.execute(
-                    text(
-                        "INSERT INTO material_checks(submission_id,status) VALUES (:s,'VALID')"
-                    ),
-                    {"s": sid},
-                )
-                for reviewer in c["reviewers"][1 - class_index]:
-                    task = conn.execute(
-                        text("""INSERT INTO review_tasks(panel_id,submission_id,reviewer_id,anonymous_token,status,started_at,submitted_at)
-                        VALUES (:p,:s,:r,:token,'SUBMITTED',now()-interval '5 minutes',now()) RETURNING id"""),
-                        {
-                            "p": panel,
-                            "s": sid,
-                            "r": reviewer,
-                            "token": f"MORE-{class_index}-{number}",
-                        },
-                    ).scalar_one()
-                    conn.execute(
-                        text(
-                            "INSERT INTO review_scores(review_task_id,rubric_item_id,score) VALUES (:t,:r,:score)"
-                        ),
-                        {
-                            "t": task,
-                            "r": c["rubric"],
-                            "score": 75 if number == 1 else 90,
-                        },
-                    )
-                    conn.execute(
-                        text(
-                            "INSERT INTO review_comments(review_task_id,content,char_count) VALUES (:t,'完整的测试评语',60)"
-                        ),
-                        {"t": task},
-                    )
-        first = conn.execute(text("SELECT min(id) FROM review_tasks")).scalar_one()
         conn.execute(
             text(
-                "UPDATE review_tasks SET started_at=submitted_at-interval '20 seconds' WHERE id=:t"
+                "INSERT INTO assignments(title,type,status,created_by) VALUES ('旧作业','FINAL_PROJECT','DRAFT',:u)"
             ),
-            {"t": first},
+            {"u": teacher},
         )
+    with pytest.raises(DBAPIError), pg_engine.begin() as conn:
+        config.attributes["connection"] = conn
+        command.upgrade(config, "head")
+    with pg_engine.connect() as conn:
+        assert (
+            conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+            == "20261022_0009"
+        )
+        assert conn.execute(text("SELECT count(*) FROM assignments")).scalar_one() == 1
+
+
+def test_short_duration_creates_no_case_and_old_runs_refresh_without_duplicates(course):
+    c = reviewed_course(course, short_first=True, works_per_class=3)
     response = c["client"].post(f"/api/teacher/assignments/{c['id']}/aggregate-reviews")
     assert all(p["status"] == "COMPLETED" for p in response.json()["data"]["panels"]), (
         response.text
@@ -393,10 +343,9 @@ def test_real_low_evidence_persists_and_old_runs_backfill_without_duplicates(cou
             .mappings()
             .all()
         )
-        assert len(lows) == 1
-        assert "SHORT_DURATION" in lows[0]["evidence_json"]["rules_triggered"]
+        assert lows == []
         assert (
-            conn.execute(text("SELECT count(*) FROM anomaly_records")).scalar_one() == 1
+            conn.execute(text("SELECT count(*) FROM anomaly_records")).scalar_one() == 0
         )
         conn.execute(text("DELETE FROM anomaly_records WHERE risk_level='LOW'"))
         conn.execute(
@@ -418,5 +367,5 @@ def test_real_low_evidence_persists_and_old_runs_backfill_without_duplicates(cou
             conn.execute(
                 text("SELECT count(*) FROM anomaly_records WHERE risk_level='LOW'")
             ).scalar_one()
-            == 1
+            == 0
         )

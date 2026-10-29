@@ -19,7 +19,10 @@ const assignments = ref([]),
 const filters = [
   { value: 'all', label: '全部作业' },
   { value: 'PROGRAMMING', label: '编程练习' },
-  { value: 'FINAL_PROJECT', label: '期末项目' }
+  { value: 'FINAL_PROJECT', label: '期末项目' },
+  { value: 'ALGORITHM_ANALYSIS', label: '算法分析题' },
+  { value: 'PROOF', label: '证明题' },
+  { value: 'OPEN_ENDED', label: '开放问答题' }
 ]
 const filteredAssignments = computed(() =>
   assignments.value.filter(
@@ -37,7 +40,7 @@ const publishedCount = computed(
   () =>
     assignments.value.filter(
       (item) =>
-        item.type === 'FINAL_PROJECT' && item.status === 'PUBLISHED_RESULT'
+        item.type !== 'PROGRAMMING' && item.status === 'PUBLISHED_RESULT'
     ).length
 )
 const pending = computed(() => pendingAssignments(assignments.value))
@@ -153,7 +156,7 @@ onMounted(loadAssignments)
           <div v-else-if="!assignments.length" class="empty-state">
             <UiIcon name="book" />
             <h3>课程作业还在准备中</h3>
-            <p>暂无已发布作业。新注册同学请联系任课教师加入课程班级。</p>
+            <p>暂无已发布作业，请联系任课教师确认课程班级与作业安排。</p>
           </div>
           <div v-else-if="!filteredAssignments.length" class="empty-state">
             <UiIcon name="search" />

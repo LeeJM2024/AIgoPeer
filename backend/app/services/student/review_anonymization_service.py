@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile
 
+from app.core.archive_security import UnsafeArchive, inspect_office, inspect_zip
 from app.core.config import settings
 
 TEXT_EXTENSIONS = {".c", ".cc", ".cpp", ".cxx", ".cs", ".go", ".h", ".hpp", ".java", ".js", ".py", ".rs", ".ts", ".md", ".txt", ".in", ".out", ".json", ".csv"}
@@ -33,7 +34,7 @@ def _safe_office_bytes(data: bytes, markers: list[str]) -> bytes:
     try:
         output = io.BytesIO()
         with ZipFile(io.BytesIO(data)) as source, ZipFile(output, "w", ZIP_DEFLATED) as target:
-            for info in source.infolist():
+            for info in inspect_office(source):
                 name = PurePosixPath(info.filename).as_posix()
                 if name.startswith("docProps/"):
                     continue
@@ -42,7 +43,7 @@ def _safe_office_bytes(data: bytes, markers: list[str]) -> bytes:
                     raise AnonymizationError("IDENTITY_MARKER_DETECTED")
                 target.writestr(name, contents)
         return output.getvalue()
-    except BadZipFile as exc:
+    except (BadZipFile, UnsafeArchive, RuntimeError) as exc:
         raise AnonymizationError("UNSAFE_OFFICE_DOCUMENT") from exc
 
 
@@ -51,6 +52,8 @@ def _safe_image_bytes(data: bytes) -> bytes:
         from PIL import Image
 
         source = Image.open(io.BytesIO(data))
+        if source.width * source.height > 20_000_000:
+            raise AnonymizationError("IMAGE_TOO_LARGE")
         output = io.BytesIO()
         image = source.convert("RGBA") if source.mode not in {"RGB", "RGBA"} else source
         image.save(output, format="PNG")
@@ -62,7 +65,7 @@ def _safe_image_bytes(data: bytes) -> bytes:
 def _safe_video_file(source: Path, destination: Path) -> None:
     try:
         subprocess.run(
-            [settings.ffmpeg_bin, "-y", "-v", "error", "-i", str(source), "-map", "0", "-map_metadata", "-1", "-c", "copy", str(destination)],
+            [settings.ffmpeg_bin, "-nostdin", "-y", "-v", "error", "-protocol_whitelist", "file,pipe", "-f", "matroska" if source.suffix.lower() == ".mkv" else "mov", "-i", str(source), "-map", "0:v:0", "-map", "0:a:0?", "-map_metadata", "-1", "-c", "copy", str(destination)],
             check=True,
             capture_output=True,
             timeout=settings.anonymization_command_timeout_seconds,
@@ -90,7 +93,7 @@ def build_anonymous_review_archive(
             work = Path(temporary)
             with ZipFile(source_archive) as source, ZipFile(destination, "x", ZIP_DEFLATED) as target:
                 file_index = 0
-                for info in source.infolist():
+                for info in inspect_zip(source):
                     if info.is_dir():
                         continue
                     path = PurePosixPath(info.filename)
@@ -113,6 +116,8 @@ def build_anonymous_review_archive(
                         _safe_video_file(input_path, output_path)
                         target.write(output_path, safe_name)
                         continue
+                    if info.file_size > 64 * 1024 * 1024:
+                        raise AnonymizationError("REVIEW_MATERIAL_TOO_LARGE")
                     contents = source.read(info)
                     if suffix in TEXT_EXTENSIONS:
                         if _contains_identity(contents, markers):
@@ -123,7 +128,7 @@ def build_anonymous_review_archive(
                         contents = _safe_image_bytes(contents)
                     target.writestr(safe_name, contents)
         return destination.relative_to(root).as_posix()
-    except (BadZipFile, OSError) as exc:
+    except (BadZipFile, OSError, UnsafeArchive, RuntimeError) as exc:
         destination.unlink(missing_ok=True)
         raise AnonymizationError("ANONYMIZATION_FAILED") from exc
     except Exception:

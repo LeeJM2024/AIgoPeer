@@ -1,511 +1,178 @@
-# AlgoPeer：五人跨班评审 Bayesian 鲁棒聚合算法规格
+# AlgoPeer 算法实现规格
 
-版本：`1.0.1`
-状态：已实现；2026-10-13 修正画像学习资格与小样本一致评分策略
-适用范围：每个 `review_panel` 固定 5 名评审人，对目标班全部有效作品按 Rubric 评分。
+本文说明当前算法的输入边界、计算方式和持久化约束。面向教师与课程使用者的完整原理说明见[算法设计](../docs/算法设计.md)。
 
-## 1. 目标与成绩政策
+| 模块 | 实现 | 版本 |
+| --- | --- | --- |
+| 首次分配 | `algorithms/allocation.py` | `1.0.0` |
+| 增量分配 | `algorithms/incremental_allocation.py` | 以模块常量与运行记录为准 |
+| 稀疏聚合 | `algorithms/aggregation.py`，`panel_bayesian_robust` | `2.1.0` |
+| 历史关系 | `algorithms/relationships.py` | `1.0.0` |
 
-算法目标不是证明某位学生“主观恶意”，而是：
+## 1. 业务边界
 
-1. 校正评审人长期偏严、偏宽与评分不稳定；
-2. 识别单次极端、疑似定向的异常评分；
-3. 对低风险作品给出可解释的五人聚合分与置信度；
-4. 对高风险作品停止使用五人聚合，转由同一教师基于完整证据录入一次复核最终分决定成绩。
+跨班评审用于 `FINAL_PROJECT` 期末微课作业，范围为两个班级的有效提交与参与评委。每份作品必须获得对方班五名不同评委的完整评分。
 
-成绩规则：
+`PROGRAMMING` 使用自动判题；`ALGORITHM_ANALYSIS`、`PROOF`、`OPEN_ENDED` 为在线作答、提交即完成。
 
-```text
-低风险作品：
-最终分 = 0.60 × 第一次教师独立评分
-       + 0.40 × 五人 Bayesian 鲁棒聚合分
-
-高风险作品：
-最终分 = 教师复核最终分
-```
-
-高风险作品的第一次教师分、五人原始分和 Bayesian 聚合分均保留审计，但不参与最终分计算。
-
-小样本五人逐项一致时，聚合分为逐项中位数之和，正常最终分仍使用上述 `0.60 / 0.40` 公式。
-
-明确不做：
-
-* 不修改原始评分；
-* 不因异常自动处罚评审人；
-* 不做学生自助回避；
-* 不尝试识别“五人完全一致的串通评分”。
-
-## 2. 候选算法与最终选型
-
-|候选方案|结论|原因|
-|---|---|---|
-|简单平均|不采用|单个极端分数会明显拉动结果。|
-|逐项中位数|保留为安全基线与回退|5 人中最多 2 人极端时具有天然鲁棒性，但不能校正长期严宽差异。|
-|Bayesian Peer Grading + 异常混合模型|正式选型|可联合估计作品真实分、评分者偏差、评分噪声和单次异常概率。|
-|要求评审人预测他人分数的校准法|暂不采用|需要增加前端交互与额外行为假设，不适合 MVP。|
-
-正式算法名称：
+普通期末作品的最终分为：
 
 ```text
-panel_bayesian_robust
+final = teacher_weight × locked_teacher_score
+      + designated_review_weight × aggregate_total
 ```
 
-参考文献：
+权重默认 `0.60 / 0.40`，由作业草稿配置，合计为 1，作业发布后冻结。HIGH 作品采用同一初评教师锁定的 `teacher_final_review_score`。初评分、同伴原始分、聚合分和最终复核分别保存。
 
-1. Zarkoob et al., AAAI 2023, [Better Peer Grading through Bayesian Inference](https://ojs.aaai.org/index.php/AAAI/article/view/25757)：贝叶斯同伴评分、评分者偏差、可靠性、低投入行为及离散 Rubric。
-2. Stelmakh, Shah, Singh, AAAI 2021, [Catch Me if I Can: Detecting Strategic Behaviour in Peer Assessment](https://ojs.aaai.org/index.php/AAAI/article/view/16611)：战略性评分的统计检测与误报控制。
-3. Lu, Kong, NeurIPS 2023, [Calibrating “Cheap Signals” in Peer Review without a Prior](https://proceedings.neurips.cc/paper_files/paper/2023/hash/41badd36e935f8a80175e95d8bc6192e-Abstract-Conference.html)：无先验校准思路；本项目不采用其“预测他人分数”的交互。
-4. Agarwal et al., ICML 2020, [Rank Aggregation from Pairwise Comparisons in the Presence of Adversarial Corruptions](https://proceedings.mlr.press/v119/agarwal20a.html)：对抗污染需要显式建模与异常处理。
+## 2. 首次分配
 
-## 3. 输入
+`allocate_reviews(works, seed, history)` 使用 SciPy / HiGHS 0–1 MILP 联合求解两个评审方向。
 
-聚合以单个 `panel_id` 为边界，严禁混合两个 Panel 数据。
+设两个班各有 `n1、n2` 名有效提交者且每人一份作品，候选变量约为 `2 × n1 × n2`。硬约束为：
 
-|字段|类型/单位|范围/说明|
-|---|---|---|
-|`assignment_id`|int|作业 ID。|
-|`panel_id`|int|固定五人评审组 ID。|
-|`submission_id`|int|被评作品 ID。|
-|`reviewer_id`|int|评审人 ID，仅内部算法使用。|
-|`rubric_item_id`|int|Rubric 项 ID。|
-|`score`|decimal|`0 <= score <= max_score`。|
-|`max_score`|decimal|该 Rubric 项满分，必须大于 0。|
-|`started_at` / `submitted_at`|ISO 8601|用于计算评审耗时。|
-|`comment`|string|评语原文，仅算法内部统计长度；不进入公开结果。|
-|`task_status`|enum|只有 `SUBMITTED` 评分进入正式聚合。|
+- 每份作品恰好五名不同跨班评委。
+- 每名评委负载在本班平均任务量的 floor / ceil 之间。
+- 每对跨班作者的两个方向任务之和不超过 1。
 
-归一化分数：
+必要容量条件为 `min(n1,n2) >= 5` 且 `n1*n2 >= 5*(n1+n2)`。100∶40 对应 700 条任务和约 8,000 个变量，个人配额分别为 2 与 12～13。
+
+历史代价优先于随机扰动。每条候选边的扰动为 `Random(seed)/(candidate_count+1)`，总扰动小于 1，保留整数历史代价的优先级。后端使用早于当前作业的最近 20 份相关作业构建历史权重。
+
+默认求解时限 20 秒，只接受最优完成状态。求解后可进行有界任务交换，保持硬约束与历史代价，并尝试减少评分图连通分量。保存前再次校验所有任务。
+
+## 3. 增量分配与替补
+
+增量分配固定已有有效边，仅为新增作品建立变量。约束继续保证五评、严格跨班与合并后的无直接互评。目标依次为累计负载平方和、历史重复代价、固定种子扰动。
+
+每次生成前核对教师确认的名单和有效作品快照。名单或已有边变化后重新预览确认。无新增作品可复用结果；不可行时不保存部分分配。
+
+替补仅作用于未提交任务，保留原任务与替补历史。候选来自同方向参与范围，检查当前班级、未接触该作品和无直接互评，优先考虑较轻负载与较少重复。初次负载均衡与追加、替补后的实际负载分别记录。
+
+## 4. 稀疏评分输入
+
+聚合按单个 `panel_id`（跨班评审方向）执行。正式后端汇集该方向全部批次的当前有效评分，各作品可以拥有不同的五名评委。
+
+| 输入 | 含义 |
+| --- | --- |
+| `assignment_id` / `panel_id` | 作业与评审方向 |
+| `submission_id` / `reviewer_id` / `task_id` | 作品、评委、有效任务 |
+| `rubric_item_id` / `score` / `max_score` | 评分项、原始分与满分 |
+| `duration_seconds` / `comment_length` | 客观记录，保留于证据 |
+| 历史标准化残差 | 后端提供的去重历史关系快照 |
+
+归一化 `x[r,s,k] = score / max_score`，范围为 `[0,1]`。正式聚合要求提交已结束、全部最终有效作品分配完毕且各有五份完整已提交评分。纯函数可接受分析用稀疏输入，正式发布约束由持久化服务与数据库共同落实。
+
+评分按实际邻接建索引，缺失位置保持缺失。同一方向内按评分图连通分量对可学习评委偏差中心化。
+
+## 5. MAP-EM 更新
+
+当前实现使用高斯密度与单位区间均匀异常密度的混合近似。高斯中心为 `clip(theta[s,k] + bias[r], 0, 1)`，高斯尺度为 `sigma[r]`。单次异常后验由两部分密度及 `pi[r]` 计算。
 
 ```text
-x[r,s,k] = score[r,s,k] / max_score[k]
+w[r,s,k] = (1 - p_anomaly[r,s,k]) / max(sigma[r]², sigma_min²)
+lambda = 1 / theta_prior_std²
+
+theta[s,k] = clip(
+    (lambda × theta_prior_mean
+     + sum_r(w[r,s,k] × (x[r,s,k] - bias[r])))
+    / (lambda + sum_r(w[r,s,k])), 0, 1)
 ```
 
-其中 `r` 为评审人、`s` 为作品、`k` 为 Rubric 项，`x ∈ [0, 1]`。
+偏差使用带先验精度的加权残差更新；噪声用带先验伪样本的残差平方更新；异常倾向用 Beta 先验与异常后验和更新。评委至少完成三份不同作品才更新个人参数。未达门槛者保持 `bias=0`、先验噪声与异常先验。
 
-## 4. Bayesian 鲁棒模型
+最多迭代 100 次，参数变化小于 `1e-6` 接受收敛。接受后重新计算后验。逐项分 `round(theta × max_score, 2)`，总分为逐项分之和。
 
-### 4.1 隐变量
+### 默认数值参数
+
+| 参数 | 值 |
+| --- | ---: |
+| 作品分先验均值 / 标准差 | 0.50 / 0.25 |
+| 偏差先验标准差 | 0.15 |
+| 噪声先验 / 最小噪声 | 0.12 / 0.05 |
+| 异常先验 Beta 参数 | 1 / 20 |
+| 个人画像最少不同作品数 | 3 |
+| 每份作品评委数 | 5 |
+| 区间系数 | 1.96 |
+
+完整默认值以 `aggregation.DEFAULT_PARAMETERS` 为准。运行保存完整参数、版本、推断方式与策略标识。
+
+## 6. 区间与回退
 
 ```text
-theta[s,k]：作品 s 在 Rubric 项 k 的潜在真实归一化分
-bias[r]：评审人 r 的长期严宽偏差；负值表示偏严，正值表示偏宽
-sigma[r]：评审人 r 的评分噪声；越小表示越稳定
-pi[r]：评审人 r 的异常评分先验概率
-z[r,s,k]：该次评分是否异常，0=正常，1=异常
+SE = sqrt(1 / (lambda + sum(w)))
+interval = max_score × clip(theta ± 1.96 × SE, 0, 1)
+confidence = 1 - min(1, normalized_interval_width / 0.20)
 ```
 
-约束：
+| 情况 | 处理 |
+| --- | --- |
+| 作品少于五份有效评分 | 持久化服务拒绝正式聚合和发布 |
+| 方向内作品少于三份 | `PANEL_TOO_SMALL`，逐项中位数回退，画像为先验 |
+| 小样本回退且某作品五人每项完整且原始分一致 | 该作品豁免区间宽 HIGH；其他硬规则继续检查 |
+| 超过迭代上限未收敛 | `MODEL_NOT_CONVERGED`；纯函数恢复中位数和先验，后端标为 FAILED，不写正式聚合、画像或异常 |
+| 分数越界、缺项、重复等输入错误 | 拒绝运行并保留失败诊断 |
+
+回退区间为围绕中位数、使用先验噪声计算的近似区间，保存 `interval_kind`、`fallback_reason`、`posterior_available` 与 `wide_interval_exempt`。回退的异常后验 0 是兼容占位值，结合后验可用标识读取。
+
+## 7. 风险证据
+
+任一评分项满足以下硬规则，作品进入 HIGH：
+
+- 其余四人跨度 ≤0.15，当前评分偏离其余四人中位数 ≥0.30。
+- 单次异常后验 ≥0.95。
+- 模型分与五人中位数的归一化差 ≥0.15。
+- 归一化区间宽度达到当前判定线：一般为 0.20；模型收敛且该项全部评委均无个人学习资格时为 0.25；小样本逐项一致豁免按上一节执行。
+
+低熵信号在至少三个评分项时计算，按 `min(5, 项数)` 分桶，归一化熵 ≤0.20 产生提示。任务风险分为：
 
 ```text
-0 <= theta[s,k] <= 1
-sum(bias[r]) = 0
-sigma[r] >= sigma_min
+100 × clip(0.45 × hard_outlier
+         + 0.35 × max(p_anomaly)
+         + 0.05 × low_entropy, 0, 1)
 ```
 
-### 4.2 观测模型
+HIGH 由硬规则决定，风险分与风险等级分别保存。无硬规则时，风险分 ≥50 为 MEDIUM，否则为 LOW；历史关系模块可进一步产生 MEDIUM / HIGH。没有触发信号的普通 LOW 观察不形成待处理异常。
 
-正常评分采用截断正态分布；异常评分采用宽分布：
+耗时与评语字数仅作记录，不参与风险分、等级或复核依据。证据保存原始分、其他四人中位数与跨度、模型分、中位数、区间、实际区间判定线和触发规则。
+
+## 8. 历史关系
+
+后验可用时，为任务计算标准化残差：
 
 ```text
-z[r,s,k] ~ Bernoulli(pi[r])
-
-当 z = 0：
-x[r,s,k] ~ TruncatedNormal(theta[s,k] + bias[r], sigma[r]^2, 0, 1)
-
-当 z = 1：
-x[r,s,k] ~ Uniform(0, 1)
+mean_k((score/max_score - bias - aggregate_item/max_score) / max(sigma, 0.05))
 ```
 
-离散 Rubric 分数按区间处理。例如满分 20、录入 18 分，对应归一化区间：
+读取早于当前作业的最近 20 份相关作业，每份、每方向只取最新成功聚合。支持数按不同作业计数。
 
-```text
-[(18 - 0.5) / 20, (18 + 0.5) / 20]
-```
+| 条件 | 规则与级别 |
+| --- | --- |
+| 当前残差绝对值 ≥2，至少三份作业同方向异常 | `REPEATED_SIGNED_RELATIONSHIP`，HIGH |
+| 正向边各有至少两份作业支持，构成两至四人闭环 | `PERSISTENT_POSITIVE_CYCLE`，HIGH |
+| 至少三份配对作业，其中至少两份同方向异常，未满足持续同向规则 | `CONCENTRATED_RELATIONSHIP_RESIDUALS`，MEDIUM |
 
-边界截断到 `[0, 1]`。
+保存关系方向、残差、样本数、相关任务、作业、运行和环路径。教师依据原作品与证据处理。
 
-建议先验参数：
+## 9. 评分修改与发布一致性
 
-```json
-{
-  "theta_prior_mean": 0.50,
-  "theta_prior_std": 0.25,
-  "bias_prior_std": 0.15,
-  "sigma_min": 0.05,
-  "sigma_prior_mean": 0.12,
-  "pi_alpha": 1,
-  "pi_beta": 20
-}
-```
+学生评委在评审阶段且截止前可修改本人已提交评分，原因必填，保存前后值与版本。正式聚合读取最新有效评分；发布检查核对聚合时间与评分修改时间。
 
-这些参数均基于归一化分数尺度。
+教师初评分与更正追加版本；算法保持独立的输出表。HIGH 要求初评同一教师录入一个最终分，复核理由选填，提交即锁定。LOW / MEDIUM 待处理记录须显式确认或驳回。
 
-### 4.3 推断与可靠性权重
+发布前检查五份完整有效评分、成功聚合、初评锁定、所有待办与复核状态以及冻结权重。已发布结果保存分数与来源快照。已发布作业或存在锁定最终复核的作品禁止重新聚合。
 
-首版采用确定性的 MAP-EM 推断，而非随机 MCMC，便于测试和复现。
+## 10. 可复现性与源码入口
 
-单次评分异常后验概率：
+分配记录名单、作品、已有边、历史窗口、种子、约束、算法版本、输入哈希、求解状态和耗时。聚合输入按方向、作品、评委和评分项排序，以固定 JSON 序列化与历史快照计算 SHA-256。
 
-```text
-p_anomaly[r,s,k] = P(z[r,s,k] = 1 | 全部 Panel 评分)
-```
+复用检查作业、方向、算法名、版本、输入摘要、参数和策略一致，且运行已完成。重算保留旧运行与证据；符合条件的旧 OPEN 异常按替代运行归档，当前有效异常仍由教师处理。
 
-该评分进入作品潜在真实分估计的有效精度权重：
+| 入口 | 内容 |
+| --- | --- |
+| [首次分配](algorithms/allocation.py) | MILP、硬约束与结构交换 |
+| [增量分配](algorithms/incremental_allocation.py) | 固定已有边、累计负载优化 |
+| [聚合](algorithms/aggregation.py) | 稀疏 MAP-EM、区间、画像、评分异常 |
+| [关系检测](algorithms/relationships.py) | 去重历史证据与有界环搜索 |
+| [模拟实验](experiments/sparse_review.py) | 多班级规模、多种子与聚合对比 |
 
-```text
-w[r,s,k] = (1 - p_anomaly[r,s,k]) / max(sigma[r]^2, sigma_min^2)
-```
-
-逐项潜在真实分的可实现近似更新式：
-
-```text
-theta[s,k]
-= clip(
-    (lambda * theta_prior_mean
-      + sum_r w[r,s,k] * (x[r,s,k] - bias[r]))
-    / (lambda + sum_r w[r,s,k]),
-    0,
-    1
-  )
-```
-
-其中：
-
-```text
-lambda = 1 / theta_prior_std^2
-```
-
-评分者偏差以带先验收缩的加权残差均值更新；`sigma[r]` 以正常评分的加权残差平方更新；`pi[r]` 以异常后验均值和 Beta 先验更新。迭代上限 `100` 次，参数变化小于 `1e-6` 时收敛。
-
-解释：
-
-* 评审人长期偏低 5 分，会被 `bias[r]` 校正；
-* 评分者长期不稳定，会有较大的 `sigma[r]`；
-* 某人只对一份作品异常低分，`p_anomaly` 会升高；
-* 原始评分不改写；统计影响变化不等于纪律处罚。
-
-### 4.4 逐项分、总分与置信度
-
-Bayesian 聚合逐项分：
-
-```text
-aggregate_score[s,k] = round(theta[s,k] * max_score[k], 2)
-```
-
-总分：
-
-```text
-aggregate_total[s] = sum_k aggregate_score[s,k]
-```
-
-近似标准误：
-
-```text
-SE[s,k] = sqrt(1 / (lambda + sum_r w[r,s,k]))
-```
-
-95% 可信区间：
-
-```text
-CI[s,k] = max_score[k] × clip(theta[s,k] ± 1.96 × SE[s,k], 0, 1)
-```
-
-置信度：
-
-```text
-confidence[s,k] = 1 - min(1, CI_width_normalized[s,k] / 0.20)
-```
-
-其中：
-
-```text
-CI_width_normalized = (CI_upper - CI_lower) / max_score[k]
-```
-
-五人逐项中位数必须同时保存：
-
-```text
-median_score[s,k] = median(score[1..5, s, k])
-```
-
-它不替代 Bayesian 结果，但用于风险检测、回退和解释。
-
-## 5. 高风险与异常规则
-
-### 5.1 强制高风险规则
-
-以下任一条件成立，作品进入 `HIGH` 风险并停止采用五人聚合作为最终分依据：
-
-1. **四人共识、单人极端离群**
-
-```text
-span(其余四人归一化分数) <= 0.15
-且
-abs(该评审分数 - median(其余四人分数)) >= 0.30
-```
-
-2. **Bayesian 单次异常评分**
-
-```text
-p_anomaly[r,s,k] >= 0.95
-```
-
-3. **模型与中位数显著冲突**
-
-```text
-abs(theta[s,k] - median_normalized[s,k]) >= 0.15
-```
-
-4. **模型不确定性过高**
-
-```text
-CI_width_normalized[s,k] >= 0.20
-```
-
-任一 Rubric 项触发，即整份作品触发高风险。
-
-**小样本一致评分豁免（1.0.1）：**仅当 `fallback_reason=PANEL_TOO_SMALL`，某份作品的固定五名不同评审人全部完成评分，每个 Rubric 项的五人原始分与满分均一致，且五人的评分项集合完整、无重复时，该作品不因 `WIDE_CREDIBLE_INTERVAL` 升级为 HIGH。每个评分维度可以有不同分数，只要求该维度五人一致。判断逐份作品进行，不扩展到整个 Panel。
-
-少于五份评分、重复评审人、评分项缺失/重复、任何维度不一致、满分不一致或 `MODEL_NOT_CONVERGED`，均不适用豁免。四对一离群、有效模型的异常后验及其他硬规则仍保留；行为信号仍记录，必要时按 LOW/MEDIUM 的显式处理流程执行。
-
-### 5.2 评分人标记
-
-对满足规则 1 或规则 2 的评审人，创建：
-
-```text
-reviewer_flag = SUSPECTED_OUTLIER
-```
-
-含义是“评分显著异常，需要复核”，不是系统认定其主观恶意。
-
-评审人提示流程：
-
-1. 若该评审是最后提交且其他四人已完成，提交前可提示其复核并要求补充评分依据；
-2. 不向其透露其他人分数、作者身份或异常阈值的具体对比值；
-3. 评审人可坚持原分数，系统保留原始记录；
-4. 五人完成后仍由后台任务进行最终异常检测；
-5. 作者、其他评审人与普通学生均不可见标记。
-
-### 5.3 行为异常：一般风险证据
-
-行为信号不单独触发教师二次盲审，但写入风险证据；与评分异常叠加时供教师判断。
-
-|信号|规则|默认参数|
-|---|---|---|
-|评审耗时过短|`duration_seconds < max(120, 0.25 × panel_median_duration)`|秒|
-|评语过短|去空白后字符数 `< 30`|字符|
-|低熵评分|至少 3 个 Rubric 项，归一化分数分为 5 桶后 `normalized_entropy <= 0.20`|无量纲|
-|低投入组合|耗时过短、评语过短、低熵中至少两项成立|一般风险|
-
-归一化熵：
-
-```text
-H = -sum_b p[b] * log(p[b]) / log(B)
-```
-
-其中 `B = min(5, Rubric 项数)`。
-
-### 5.4 风险分与证据格式
-
-单个评审任务风险分：
-
-```text
-risk_score = 100 × clip(
-  0.45 × hard_outlier
-  + 0.35 × max_k(p_anomaly[r,s,k])
-  + 0.10 × short_duration
-  + 0.05 × short_comment
-  + 0.05 × low_entropy,
-  0,
-  1
-)
-```
-
-`HIGH` 风险以 5.1 的硬条件为准；`MEDIUM` 为 `risk_score >= 50` 或存在两个行为信号；否则为 `LOW`。
-
-证据 JSON 示例：
-
-```json
-{
-  "risk_level": "HIGH",
-  "risk_score": 96.4,
-  "rules_triggered": ["FOUR_VS_ONE_OUTLIER", "POSTERIOR_OUTLIER"],
-  "rubric_evidence": [{
-    "rubric_item_id": 1,
-    "max_score": 20,
-    "reviewer_score": 12,
-    "other_four_median": 18,
-    "other_four_span": 1,
-    "normalized_deviation": 0.30,
-    "posterior_anomaly_probability": 0.97,
-    "bayesian_score": 18.1,
-    "median_score": 18.0,
-    "ci_lower": 17.3,
-    "ci_upper": 18.8
-  }],
-  "behavior_evidence": {
-    "duration_seconds": 95,
-    "comment_char_count": 18,
-    "normalized_entropy": 0.12
-  }
-}
-```
-
-## 6. 高风险后的教师流程
-
-高风险作品状态建议为：
-
-```text
-ESCALATED_FOR_TEACHER_FINAL_REVIEW
-```
-
-教师复核页面展示匿名作品材料、第一次教师分、五人原始评分、Bayesian 聚合分、异常规则和证据。教师不需要重新填写 Rubric，只需在总分范围内填写复核最终分和理由；提交即锁定。
-
-教师锁定复核最终分后：
-
-```text
-final_score = teacher_final_review_score
-final_grade_source = TEACHER_FINAL_REVIEW
-```
-
-相关 HIGH 异常自动记为已由复核处理；MEDIUM/LOW 异常仍需教师显式确认或驳回。第一次教师分、五人原始分、算法运行和复核最终分均不可覆盖或删除。
-
-## 7. 小样本与失败回退
-
-|情形|行为|
-|---|---|
-|某作品少于 5 份已提交评分|不生成正式聚合；返回 `INSUFFICIENT_REVIEWS`。|
-|某评审人少于 3 份不同作品的已完成评分|不单独学习其 `bias/sigma/pi`；使用群体先验，`learned=False`。|
-|整个 Panel 可用作品少于 3 份|不启用 Bayesian 校正；逐项中位数作为聚合分，`fallback_reason=PANEL_TOO_SMALL`，所有画像 `learned=False`。|
-|小样本且某份作品五人每项一致|保留中位数回退与未学习标记，该作品豁免区间宽 HIGH；正常成绩按教师初评分 60% + 中位数聚合分 40%。|
-|EM 未在 100 次内收敛|纯函数逐项中位数回退，`fallback_reason=MODEL_NOT_CONVERGED`，画像恢复先验、`learned=False`，放弃失败迭代后验；后端将运行标为 FAILED，不落库正式聚合、画像或异常记录。|
-|数值异常、缺失 Rubric 或分数越界|拒绝该运行，记录失败 `algorithm_run`，不写入聚合结果。|
-|Bayesian 结果可信区间过宽|按高风险规则升级，小样本五人逐项一致的作品适用上述豁免。|
-
-### 7.1 画像学习含义与输入边界
-
-作品数按每名评审人的不同 `submission_id` 计数，不使用 Rubric 展开行数。同一作品有三个维度仍然只算一份作品。
-
-`learned=True` 表示该评审人达到三份作品门槛，且本轮 EM 成功收敛、其画像结果被接受。仅具备资格或完成了失败迭代都不能标为已学习。无学习资格者固定使用 `bias=0`、`sigma=sigma_prior_mean`、`pi=pi_alpha/(pi_alpha+pi_beta)`；偏差更新、噪声/先验更新和偏差居中都不会改变其先验。
-
-纯函数允许稀疏评分矩阵用于研究与回归测试，正式后端仍要求固定五人对全部当前有效作品提交完整 Rubric。纯函数返回结果不代表允许发布。`task_id` 可省略，异常证据仍按评审人和作品分别分组。
-
-### 7.2 回退区间的含义
-
-小样本或未收敛回退时保留区间与置信度，区间使用先验噪声、以逐项中位数为中心计算，是未校准模型的近似不确定性区间，**不是中位数估计的可信区间**。风险检测和结果输出使用同一次区间计算，不因豁免伪造更窄的区间或更高置信度。
-
-例如五人均给 85/100，小样本区间仍为 `[74.72, 95.28]`、置信度仍为 0，但该作品豁免区间宽 HIGH。如耗时与评语正常且无其他风险信号，则无需教师最终复核。异常证据和落库 `confidence_json` 中的 `uncertainty_evidence` 记录 `interval_kind`、`fallback_reason`、`posterior_available` 和 `wide_interval_exempt`。
-
-回退时 `posterior_anomaly_probability=0` 是未学习的兼容占位值，应结合 `posterior_available=False` 解读，不能把它当作已证明评分正常。风险等级由硬规则确定，风险分是独立的行为/异常加权量，两者不要求按数值一一对应。
-
-## 8. 可复现性
-
-每次运行必须记录：
-
-```json
-{
-  "algorithm_name": "panel_bayesian_robust",
-  "algorithm_version": "1.0.1",
-  "random_seed": 20261003,
-  "inference": "MAP-EM",
-  "max_iterations": 100,
-  "convergence_tolerance": 0.000001,
-  "parameters_json": {},
-  "input_hash": "sha256(...)"
-}
-```
-
-输入哈希规则：
-
-1. 对输入按 `panel_id -> submission_id -> reviewer_id -> rubric_item_id` 排序；
-2. 保留评分、满分、任务状态、开始/提交时间、评语字符数；
-3. 使用 RFC 8785 JSON Canonicalization Scheme 序列化；
-4. 计算 UTF-8 字节的 SHA-256。
-
-即使 MAP-EM 为确定性算法，也保留固定随机种子，用于确定性初始化、模拟实验和未来 MCMC 扩展。
-
-算法名称、版本由纯函数常量统一提供。运行参数记录完整 `DEFAULT_PARAMETERS`（含学习门槛、五人数量、一致豁免开关、区间及风险阈值、行为规则与风险权重），以及 `inference=MAP-EM`、`low_evidence_policy=2`、画像学习/回退区间/失败落库策略。
-
-复用要求作业、Panel、算法名称、版本、输入哈希、数值参数和策略配置全部一致且运行 COMPLETED。仅缺少旧的 `low_evidence_policy` 标记时，可使用原有 LOW 证据补齐机制；该兼容例外不放宽其他配置匹配。旧版 1.0.0 不会被新版误复用。
-
-未发布且没有已锁定教师复核最终分时，对同一评分快照重新聚合会保留旧运行、旧聚合和原始异常证据；旧运行的 OPEN 异常归档为 DISMISSED，注明替代运行并写系统审计，新运行产生的实际异常仍需按教师流程处理。复核状态随最新结果更新，避免旧版区间宽复核状态残留。不同输入快照的旧异常不会被自动归档。已发布作业或已有锁定复核最终分的作品禁止新版重新聚合。
-
-## 9. 测试样本
-
-### 9.1 正常样本
-
-两项 Rubric，均满分 20；五人对作品 A 评分：
-
-|评审人|项 1|项 2|
-|---|---:|---:|
-|R1|18|17|
-|R2|19|18|
-|R3|18|17|
-|R4|17|18|
-|R5|18|17|
-
-预期：
-
-```json
-{
-  "risk_level": "LOW",
-  "median_scores": [18, 17],
-  "bayesian_scores": [17.8, 17.4],
-  "aggregate_total_approx": 35.2,
-  "all_posterior_anomaly_probabilities_below": 0.50,
-  "final_formula": "0.60 * first_teacher_score + 0.40 * 35.2"
-}
-```
-
-### 9.2 单人异常样本
-
-R5 在该作品上明显低于其他四人；R5 在该 Panel 的其他作品上与群体接近，因此不是长期偏严。
-
-|评审人|项 1|项 2|
-|---|---:|---:|
-|R1|18|17|
-|R2|19|18|
-|R3|18|17|
-|R4|18|18|
-|R5|12|10|
-
-预期：
-
-```json
-{
-  "risk_level": "HIGH",
-  "flagged_reviewer_id": "R5",
-  "rules_include": [
-    "FOUR_VS_ONE_OUTLIER",
-    "POSTERIOR_OUTLIER"
-  ],
-  "item_1_other_four_median": 18,
-  "item_1_other_four_span": 1,
-  "item_1_r5_deviation": 6,
-  "item_1_r5_posterior_anomaly_probability_at_least": 0.95,
-  "aggregate_status": "ESCALATED_FOR_TEACHER_FINAL_REVIEW",
-  "final_formula": "teacher_final_review_score"
-}
-```
-
-## 10. 论文依据与项目工程参数的边界
-
-### 论文依据
-
-* 贝叶斯潜在真实分、评分者偏差和可靠性估计；
-* 对离散 Rubric 的统计处理；
-* 战略性评分与异常检测的必要性；
-* 对抗污染应显式建模，不能只用简单平均。
-
-### 项目自行设定的工程参数
-
-* `0.60 / 0.40` 的常规最终分权重；
-* 高风险后由同一教师查看完整证据录入复核最终分；
-* 四人跨度 `15%`、单人偏离 `30%`；
-* 后验异常阈值 `95%`；
-* 模型/中位数差异 `15%`；
-* 可信区间宽度 `20%`；
-* 小样本五份完整评分逐项一致时豁免区间宽 HIGH；
-* 耗时、评语长度、低熵阈值；
-* 只防单人或少数极端评分，不处理五人一致串通；
-* 发布后冻结算法参数。
+主聚合迭代时间 `O(I × M × K)`，存储 `O(M × K + R + S × K)`。整数分配的最坏搜索复杂度为指数级，运行记录保留实际规模与状态。论文来源及其与课程规则的对应关系见[算法设计](../docs/算法设计.md#六论文依据与课程规则)。
