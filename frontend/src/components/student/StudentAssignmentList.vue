@@ -3,6 +3,7 @@ import AssignmentArtwork from '../AssignmentArtwork.vue'
 import UiIcon from '../UiIcon.vue'
 import {
   assignmentAction,
+  assignmentTypeLabel,
   assignmentDestination,
   formatDeadline,
   submissionClosed,
@@ -26,7 +27,7 @@ defineProps({ assignments: { type: Array, required: true } })
         <h2>{{ assignment.title }}</h2>
         <div class="assignment-details">
           <span>{{
-            assignment.type === 'PROGRAMMING' ? '编程练习' : '期末项目'
+            assignmentTypeLabel(assignment.type)
           }}</span
           ><span
             >提交截止：{{ formatDeadline(assignment.submit_deadline) }}</span

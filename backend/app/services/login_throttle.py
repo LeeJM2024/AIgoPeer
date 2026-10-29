@@ -15,9 +15,8 @@ def admit_login(db: Session, account: str, remote_address: str):
     _admit(db, scopes, "LOGIN_RATE_LIMITED")
 
 
-def admit_registration(db: Session, account: str, remote_address: str):
-    scopes = [("register:ip", remote_address, 20, 60), ("register:account", account, 5, 600)]
-    _admit(db, scopes, "REGISTRATION_RATE_LIMITED")
+def admit_password_change(db: Session, user_id: str):
+    _admit(db, [("password-change:user", user_id, 10, 600)], "PASSWORD_CHANGE_RATE_LIMITED")
 
 
 def _admit(db: Session, scopes: list[tuple[str, str, int, int]], error_code: str):

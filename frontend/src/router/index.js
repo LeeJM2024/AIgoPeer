@@ -5,7 +5,6 @@ import StudentProjectSubmissionView from '../views/student/StudentProjectSubmiss
 import StudentProgrammingSubmissionView from '../views/student/StudentProgrammingSubmissionView.vue'
 import StudentGradeView from '../views/student/StudentGradeView.vue'
 import LoginView from '../views/LoginView.vue'
-import RegisterView from '../views/RegisterView.vue'
 import TeacherDashboardView from '../views/teacher/TeacherDashboardView.vue'
 import TeacherAssignmentsView from '../views/teacher/TeacherAssignmentsView.vue'
 import TeacherAssignmentView from '../views/teacher/TeacherAssignmentView.vue'
@@ -15,12 +14,16 @@ import TeacherTopicsView from '../views/teacher/TeacherTopicsView.vue'
 import TeacherReviewView from '../views/teacher/TeacherReviewView.vue'
 import TeacherStatisticsView from '../views/teacher/TeacherStatisticsView.vue'
 import TeacherAiSettingsView from '../views/teacher/TeacherAiSettingsView.vue'
+import TeacherLearningAnalysisView from '../views/teacher/TeacherLearningAnalysisView.vue'
+import StudentSubjectiveSubmissionView from '../views/student/StudentSubjectiveSubmissionView.vue'
 import { currentUser } from '../api/auth'
 
 const router = createRouter({
   history: createWebHistory(),
   scrollBehavior: () => ({ top: 0 }),
   routes: [
+    { path: '/teacher/learning-analysis', component: TeacherLearningAnalysisView, meta: { teacher: true } },
+    { path: '/student/assignments/:assignmentId/subjective-submission', component: StudentSubjectiveSubmissionView, props: true, meta: { student: true } },
     {
       path: '/teacher/topics',
       component: TeacherTopicsView,
@@ -28,7 +31,7 @@ const router = createRouter({
     },
     { path: '/', redirect: () => currentUser() ? (currentUser().role === 'TEACHER' ? '/teacher' : '/student') : '/login' },
     { path: '/login', component: LoginView, meta: { public: true } },
-    { path: '/register', component: RegisterView, meta: { public: true } },
+    { path: '/register', redirect: '/login' },
     { path: '/student', component: StudentWorkspaceView, meta: { student: true } },
     {
       path: '/student/assignments/:assignmentId/project-submission',

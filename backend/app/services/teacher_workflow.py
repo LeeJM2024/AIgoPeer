@@ -7,6 +7,8 @@ from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.services.assignment_lifecycle import require_available, submission_intake_open
+
 
 def audit(
     db: Session, actor: int, action: str, entity: str, entity_id: int, before=None, after=None
@@ -37,6 +39,7 @@ def lock_assignment(db: Session, assignment_id: int, editable=True):
     )
     if row is None:
         raise HTTPException(404, "ASSIGNMENT_NOT_FOUND")
+    require_available(row, writable=True)
     if editable and row["status"] == "PUBLISHED_RESULT":
         raise HTTPException(409, "RESULTS_ALREADY_PUBLISHED")
     return row
@@ -50,6 +53,8 @@ def lock_submission(db: Session, submission_id: int):
         raise HTTPException(404, "SUBMISSION_NOT_FOUND")
     # All grade writes and publication acquire the same parent lock first.
     assignment = lock_assignment(db, assignment_id)
+    if assignment["type"] != "FINAL_PROJECT":
+        raise HTTPException(400, "REVIEWED_ASSIGNMENT_REQUIRED")
     if assignment["status"] not in {"REVIEWER_GRADING", "AGGREGATING", "TEACHER_GRADING"}:
         raise HTTPException(400, "INVALID_STATE")
     row = (
@@ -69,60 +74,6 @@ def lock_submission(db: Session, submission_id: int):
     return row
 
 
-def validate_saved_panels(db: Session, assignment_id: int):
-    from pydantic import ValidationError
-
-    from app.schemas.teacher import ReviewPanelsInput
-
-    class_ids = set(
-        db.execute(
-            text("""
-        SELECT c.id FROM classes c JOIN assignment_classes ac ON ac.class_id = c.id
-        WHERE ac.assignment_id = :id ORDER BY c.id FOR SHARE OF c
-    """),
-            {"id": assignment_id},
-        ).scalars()
-    )
-    panels = (
-        db.execute(
-            text("""
-        SELECT p.*, COALESCE(array_agg(pr.reviewer_id ORDER BY pr.reviewer_id)
-            FILTER (WHERE pr.reviewer_id IS NOT NULL), '{}') AS reviewer_ids
-        FROM review_panels p LEFT JOIN panel_reviewers pr ON pr.panel_id = p.id
-        WHERE p.assignment_id = :id GROUP BY p.id ORDER BY p.id
-    """),
-            {"id": assignment_id},
-        )
-        .mappings()
-        .all()
-    )
-    try:
-        config = ReviewPanelsInput(panels=[dict(p) for p in panels])
-    except ValidationError as exc:
-        raise HTTPException(424, "PANEL_NOT_READY") from exc
-    if {p.target_class_id for p in config.panels} != class_ids:
-        raise HTTPException(424, "PANEL_CLASSES_MUST_MATCH_ASSIGNMENT")
-    for panel in config.panels:
-        valid = set(
-            db.execute(
-                text("""
-            SELECT e.user_id FROM enrollments e JOIN users u ON u.id = e.user_id
-            WHERE e.class_id = :class AND e.user_id = ANY(:ids) AND u.system_role = 'STUDENT'
-              AND NOT EXISTS (SELECT 1 FROM enrollments other
-                              WHERE other.user_id = e.user_id AND other.class_id = :target)
-        """),
-                {
-                    "class": panel.reviewer_class_id,
-                    "target": panel.target_class_id,
-                    "ids": panel.reviewer_ids,
-                },
-            ).scalars()
-        )
-        if valid != set(panel.reviewer_ids):
-            raise HTTPException(424, "REVIEWER_CLASS_CONFLICT")
-    return panels
-
-
 def publication_readiness(db: Session, assignment_id: int):
     assignment = (
         db.execute(text("SELECT * FROM assignments WHERE id = :id"), {"id": assignment_id})
@@ -131,6 +82,8 @@ def publication_readiness(db: Session, assignment_id: int):
     )
     if assignment is None:
         raise HTTPException(404, "ASSIGNMENT_NOT_FOUND")
+    if assignment["type"] != "FINAL_PROJECT":
+        raise HTTPException(400, "REVIEWED_ASSIGNMENT_REQUIRED")
     rows = (
         db.execute(
             text("""
@@ -142,11 +95,12 @@ def publication_readiness(db: Session, assignment_id: int):
                s.final_review_status, fr.id AS final_review_id, fr.final_score AS final_review_score,
                (SELECT count(*) FROM anomaly_records ar
                 WHERE ar.submission_id = s.id AND ar.status = 'OPEN') AS open_anomalies,
-               (SELECT count(*) FROM review_tasks rt WHERE rt.submission_id = s.id) AS task_count,
+               (SELECT count(DISTINCT rt.reviewer_id) FROM review_tasks rt WHERE rt.submission_id = s.id AND rt.is_active) AS task_count,
                (SELECT count(*) FROM review_tasks rt
-                WHERE rt.submission_id = s.id AND rt.status = 'SUBMITTED') AS completed_tasks,
-               (SELECT max(rt.submitted_at) FROM review_tasks rt
-                WHERE rt.submission_id = s.id) AS last_review_at
+                WHERE rt.submission_id = s.id AND rt.is_active AND rt.status = 'SUBMITTED') AS completed_tasks,
+               (SELECT max(GREATEST(rt.submitted_at, (SELECT max(rev.created_at) FROM review_revisions rev
+                    WHERE rev.review_task_id=rt.id))) FROM review_tasks rt
+                WHERE rt.submission_id = s.id AND rt.is_active) AS last_review_at
         FROM submissions s JOIN users u ON u.id = s.author_id
         LEFT JOIN material_checks mc ON mc.submission_id = s.id
         LEFT JOIN LATERAL (
@@ -170,13 +124,17 @@ def publication_readiness(db: Session, assignment_id: int):
         .all()
     )
     blockers = []
+    if assignment["closed_at"] is not None:
+        blockers.append({"code": "ASSIGNMENT_CLOSED"})
+    if submission_intake_open(assignment):
+        blockers.append({"code": "SUBMISSIONS_STILL_OPEN"})
     if assignment["status"] != "TEACHER_GRADING":
         blockers.append({"code": "INVALID_STATE"})
-    if assignment["type"] == "FINAL_PROJECT" and (
-        assignment["teacher_weight"],
-        assignment["designated_review_weight"],
-    ) != (Decimal("0.60"), Decimal("0.40")):
-        blockers.append({"code": "FIXED_WEIGHTS_REQUIRED"})
+    weights = (assignment["teacher_weight"], assignment["designated_review_weight"])
+    if not all(
+        weight.is_finite() and Decimal(0) <= weight <= Decimal(1) for weight in weights
+    ) or sum(weights) != Decimal(1):
+        blockers.append({"code": "INVALID_GRADING_WEIGHTS"})
     if not rows:
         blockers.append({"code": "NO_VALID_SUBMISSIONS"})
     maximum = db.execute(

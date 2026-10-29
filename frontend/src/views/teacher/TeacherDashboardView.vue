@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { getAssignments, getDashboard } from '../../api/teacher'
 import UiIcon from '../../components/UiIcon.vue'
 import AssignmentArtwork from '../../components/AssignmentArtwork.vue'
+import { assignmentTypeLabel } from '../../presentation/assignments'
 
 const stats = ref(null)
 const assignments = ref([])
@@ -17,8 +18,8 @@ async function load() {
   finally { loading.value = false }
 }
 onMounted(load)
-const reviewAssignments = computed(() => assignments.value.filter(item => ['REVIEWER_INITIALIZING', 'REVIEWER_GRADING', 'AGGREGATING'].includes(item.status)))
-const gradingAssignments = computed(() => assignments.value.filter(item => item.status === 'TEACHER_GRADING'))
+const reviewAssignments = computed(() => assignments.value.filter(item => item.type === 'FINAL_PROJECT' && ['REVIEWER_INITIALIZING', 'REVIEWER_GRADING', 'AGGREGATING'].includes(item.status)))
+const gradingAssignments = computed(() => assignments.value.filter(item => item.type === 'FINAL_PROJECT' && item.status === 'TEACHER_GRADING'))
 const focusAssignment = computed(() => gradingAssignments.value[0] || reviewAssignments.value[0] || assignments.value[0])
 const stateName = { DRAFT: '草稿', PUBLISHED: '已发布', SUBMITTING: '提交中', REVIEWER_INITIALIZING: '分配评审中', REVIEWER_GRADING: '评审中', AGGREGATING: '汇总评审中', TEACHER_GRADING: '教师评分', PUBLISHED_RESULT: '成绩已发布' }
 </script>
@@ -47,7 +48,7 @@ const stateName = { DRAFT: '草稿', PUBLISHED: '已发布', SUBMITTING: '提交
       <div class="section-heading"><div><h2>最近作业</h2><p>查看提交情况，继续管理作业流程。</p></div><RouterLink to="/teacher/assignments">全部作业<UiIcon name="arrow" /></RouterLink></div>
       <div v-if="assignments.length" class="assignment-list">
         <RouterLink v-for="item in assignments.slice(0, 5)" :key="item.id" :to="`/teacher/assignments/${item.id}`" class="assignment-row">
-          <div class="dashboard-assignment"><span class="assignment-cover"><AssignmentArtwork :assignment="item" /></span><div><strong>{{ item.title }}</strong><small>{{ item.type === 'FINAL_PROJECT' ? '期末项目' : '编程题' }} · {{ item.submission_count }} 份提交</small></div></div>
+          <div class="dashboard-assignment"><span class="assignment-cover"><AssignmentArtwork :assignment="item" /></span><div><strong>{{ item.title }}</strong><small>{{ assignmentTypeLabel(item.type) }} · {{ item.submission_count }} 份提交</small></div></div>
           <span class="status-chip" :data-state="item.status">{{ stateName[item.status] || '状态待更新' }}</span>
           <UiIcon name="arrow" />
         </RouterLink>

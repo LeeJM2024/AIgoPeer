@@ -5,6 +5,7 @@ import { currentUser, logout } from './api/auth'
 import { getReviewEligibility } from './api/reviewer'
 import UiIcon from './components/UiIcon.vue'
 import BrandLogo from './components/BrandLogo.vue'
+import ChangePasswordDialog from './components/ChangePasswordDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -12,6 +13,7 @@ const user = computed(() => route.fullPath && currentUser())
 const isTeacher = computed(() => user.value?.role === 'TEACHER')
 const isLogin = computed(() => route.meta.public)
 const hasReviewTasks = ref(false)
+const passwordDialogOpen = ref(false)
 const pageLabel = computed(() => {
   const path = route.path
   if (path.includes('/grading')) return '教师评分'
@@ -19,6 +21,8 @@ const pageLabel = computed(() => {
   if (path.includes('/statistics')) return '成绩与发布'
   if (path.includes('/project-submission')) return '项目提交'
   if (path.includes('/programming-submission')) return '编程练习'
+  if (path.includes('/subjective-submission')) return '在线作答'
+  if (path.includes('/learning-analysis')) return '学习过程分析'
   if (path.includes('/grade')) return '成绩反馈'
   if (path.startsWith('/reviewer')) return '匿名评审'
   if (path.startsWith('/teacher/assignments/')) return '作业详情'
@@ -47,11 +51,20 @@ async function refreshReviewEntry() {
   }
 }
 
-function signOut() {
-  logout()
+async function signOut() {
+  passwordDialogOpen.value = false
+  try {
+    await logout()
+  } catch (error) {
+    if (error.status !== 401) {
+      window.alert('退出未完成：' + error.message + ' 请重试。')
+      return
+    }
+  }
   router.push('/login')
 }
 function sessionExpired() {
+  passwordDialogOpen.value = false
   router.replace({ path: '/login', query: { redirect: route.fullPath } })
 }
 onMounted(() =>
@@ -95,6 +108,7 @@ onUnmounted(() =>
         <RouterLink to="/teacher/topics" active-class="is-active"
           ><UiIcon name="book" />知识点目录</RouterLink
         >
+        <RouterLink to="/teacher/learning-analysis" active-class="is-active"><UiIcon name="book" />学习分析</RouterLink>
         <RouterLink to="/teacher/ai-video" active-class="is-active"
           ><UiIcon name="video" />视频辅助评阅</RouterLink
         >
@@ -122,6 +136,17 @@ onUnmounted(() =>
           ><small>{{ isTeacher ? '任课教师' : '学生' }}</small>
         </div>
         <button
+          v-if="user"
+          class="account-password"
+          type="button"
+          aria-label="修改密码"
+          title="修改密码"
+          aria-haspopup="dialog"
+          @click="passwordDialogOpen = true"
+        >
+          <UiIcon name="shield" /><span>修改密码</span>
+        </button>
+        <button
           class="account-logout"
           type="button"
           aria-label="退出登录"
@@ -132,6 +157,7 @@ onUnmounted(() =>
         </button>
       </div>
     </header>
+    <ChangePasswordDialog v-if="passwordDialogOpen" @close="passwordDialogOpen = false" />
     <div class="workspace-frame">
       <div
         v-if="!['/teacher', '/student'].includes(route.path)"
@@ -159,3 +185,26 @@ onUnmounted(() =>
     </div>
   </div>
 </template>
+
+<style scoped>
+.account-password {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  color: var(--muted);
+  background: var(--surface-translucent);
+  white-space: nowrap;
+  font-size: 13px;
+}
+.account-password:hover { color: var(--primary); background: var(--primary-soft); }
+@media (max-width: 1100px) {
+  .account-password { padding: 0; }
+  .account-password span { display: none; }
+}
+</style>

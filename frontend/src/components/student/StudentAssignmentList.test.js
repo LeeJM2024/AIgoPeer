@@ -5,6 +5,18 @@ import StudentAssignmentList from './StudentAssignmentList.vue'
 
 afterEach(() => vi.useRealTimers())
 
+it('作业标题中的脚本与 HTML 作为文字呈现', () => {
+  const title = '<img src=x onerror="alert(1)"><script>alert(1)</script>{{7*7}}'
+  const wrapper = mount(StudentAssignmentList, {
+    props: { assignments: [{ id: 1, title, type: 'PROGRAMMING', status: 'PUBLISHED', submit_deadline: '2030-01-01T00:00:00Z' }] },
+    global: { stubs: { AssignmentArtwork: true, RouterLink: { template: '<a><slot /></a>' } } },
+  })
+  expect(wrapper.get('h2').text()).toBe(title)
+  expect(wrapper.find('h2 img').exists()).toBe(false)
+  expect(wrapper.find('h2 script').exists()).toBe(false)
+  wrapper.unmount()
+})
+
 it('区分进行中和已截止的编程作业，并保留查看结果入口', () => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-10-13T06:00:00Z'))

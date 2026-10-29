@@ -1,10 +1,9 @@
 <script setup>
 import AlgorithmArtwork from './AlgorithmArtwork.vue'
 import BrandLogo from './BrandLogo.vue'
-defineProps({ showcase: Boolean })
 </script>
 <template>
-  <div class="auth-experience" :class="{ 'auth-register': !showcase }">
+  <div class="auth-experience">
     <header class="auth-topbar">
       <RouterLink class="auth-brand" to="/login" aria-label="网络空间安全学院 课程登录"
         ><BrandLogo /></RouterLink
@@ -13,7 +12,7 @@ defineProps({ showcase: Boolean })
     <div class="auth-stage">
       <section
         class="auth-form-column"
-        :aria-label="showcase ? '课程登录' : '学生注册'"
+        aria-label="课程登录"
       >
         <slot />
       </section>
@@ -27,9 +26,7 @@ defineProps({ showcase: Boolean })
     </div>
     <footer class="auth-footer">
       <span>网络空间安全学院 · 算法设计与分析课程空间</span
-      ><RouterLink v-if="!showcase" to="/login"
-        >已有账号？返回登录 ↗</RouterLink
-      ><span v-else>理解原理，动手实现</span>
+      ><span>理解原理，动手实现</span>
     </footer>
   </div>
 </template>
@@ -116,15 +113,6 @@ defineProps({ showcase: Boolean })
 }
 .auth-footer {
   font-size: 13px;
-}
-.auth-register .auth-form-column {
-  padding-top: 20px;
-}
-.auth-register .auth-poster {
-  justify-content: center;
-}
-.auth-register .auth-poster > .algorithm-artwork {
-  margin-top: 0;
 }
 @media (prefers-reduced-motion: no-preference) {
   .poster-heading h2 span {
@@ -226,9 +214,6 @@ defineProps({ showcase: Boolean })
     padding: 0 20px 24px;
     flex-wrap: wrap;
     font-size: 13px;
-  }
-  .auth-register .auth-form-column {
-    padding-top: 26px;
   }
 }
 /* Keep the portrait poster stacked; landscape uses the available poster width. */

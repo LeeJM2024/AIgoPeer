@@ -33,7 +33,7 @@ async function submit() {
 </script>
 
 <template>
-  <AuthExperience showcase>
+  <AuthExperience>
     <form class="auth-form" aria-labelledby="login-title" @submit.prevent="submit">
       <div class="login-heading">
         <h1 id="login-title">登录课程空间</h1>
@@ -56,7 +56,7 @@ async function submit() {
       <button type="submit" class="button" :disabled="busy">
         {{ busy ? '正在验证…' : '登录' }}<UiIcon v-if="!busy" name="arrow" />
       </button>
-      <p class="form-help">没有账号？<RouterLink to="/register">学生注册</RouterLink></p>
+      <p class="form-help">学生账号由任课教师统一添加，请使用教师提供的账号登录。</p>
     </form>
     <p class="login-caption"><UiIcon name="shield" />教师与学生使用同一入口，登录后进入对应空间</p>
   </AuthExperience>

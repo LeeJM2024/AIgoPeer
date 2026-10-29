@@ -1,6 +1,10 @@
 import { apiFetch } from './client'
 
 export const getDashboard = () => apiFetch('/api/teacher/dashboard')
+export const getLearningAnalysis = (classId = '') =>
+  apiFetch(`/api/teacher/learning-analysis${classId ? '?class_id=' + encodeURIComponent(classId) : ''}`)
+export const getProgrammingHistory = (id, page = 1, studentId = '') =>
+  apiFetch(`/api/teacher/assignments/${id}/programming-history?page=${page}${studentId ? '&student_id=' + encodeURIComponent(studentId) : ''}`)
 export const getProgrammingResults = (id) =>
   apiFetch(`/api/teacher/assignments/${id}/programming-results`)
 export const getTopics = () => apiFetch('/api/teacher/topics')
@@ -39,16 +43,18 @@ export const createAssignment = (payload) =>
     method: 'POST',
     body: JSON.stringify(payload),
   })
-export const savePanels = (id, panels) =>
-  apiFetch(`/api/teacher/assignments/${id}/review-panels`, {
-    method: 'PUT',
-    body: JSON.stringify({ panels }),
-  })
 export const publishAssignment = (id) =>
   apiFetch(`/api/teacher/assignments/${id}/publish`, { method: 'POST' })
-export const initializeReviewTasks = (id) =>
+export const getAllocationPreview = (id) =>
+  apiFetch(`/api/teacher/assignments/${id}/review-allocation-preview`)
+export const replaceReviewTask = (id, taskId, reason) =>
+  apiFetch(`/api/teacher/assignments/${id}/review-tasks/${taskId}/replace`, {
+    method: 'POST', body: JSON.stringify({ reason }),
+  })
+export const initializeReviewTasks = (id, expectedSnapshotHash) =>
   apiFetch(`/api/teacher/assignments/${id}/initialize-review-tasks`, {
     method: 'POST',
+    body: JSON.stringify({ expected_snapshot_hash: expectedSnapshotHash }),
   })
 export const getGradingWorkspace = (id) =>
   apiFetch(`/api/teacher/assignments/${id}/grading`)
@@ -99,6 +105,9 @@ export const editAssignment = (id, payload) =>
   })
 export const deleteAssignment = (id) =>
   apiFetch(`/api/teacher/assignments/${id}`, { method: 'DELETE' })
+export const closeAssignment = (id) => apiFetch(`/api/teacher/assignments/${id}/close`, { method: 'POST' })
+export const reopenAssignment = (id) => apiFetch(`/api/teacher/assignments/${id}/reopen`, { method: 'POST' })
+export const finishSubmissions = (id) => apiFetch(`/api/teacher/assignments/${id}/finish-submissions`, { method: 'POST' })
 export const getAnomalies = (id) =>
   apiFetch(`/api/teacher/assignments/${id}/anomalies`)
 export const resolveAnomaly = (id, payload) =>
@@ -119,3 +128,5 @@ export const getGradeHistory = (id) =>
   apiFetch(`/api/teacher/submissions/${id}/grade-history`)
 export const getStatistics = (id) =>
   apiFetch(`/api/teacher/assignments/${id}/statistics`)
+export const getSubjectiveAnswers = (id, page = 1) =>
+  apiFetch(`/api/teacher/assignments/${id}/subjective-answers?page=${page}`)

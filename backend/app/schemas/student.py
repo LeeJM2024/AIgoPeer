@@ -21,5 +21,6 @@ class StudentAssignmentSummary(BaseModel):
     type: str
     status: str
     submit_deadline: datetime | None = None
+    can_submit: bool = False
     review_deadline: datetime | None = None
     submission: StudentSubmissionSummary | None = None

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from conftest import seed_review_tasks
 from sqlalchemy import text
 
 
@@ -19,7 +20,7 @@ def _review_task(course, tmp_path: Path, monkeypatch):
             {"assignment": c["id"], "author": author, "class_id": c["classes"][0]},
         ).scalar_one()
         connection.execute(text("INSERT INTO material_checks(submission_id,status) VALUES (:id,'VALID')"), {"id": submission_id})
-    assert c["client"].post(f"/api/teacher/assignments/{c['id']}/initialize-review-tasks").status_code == 200
+    seed_review_tasks(c)
     monkeypatch.setattr(settings, "storage_dir", tmp_path)
     package = tmp_path / "review-materials" / "safe.zip"
     package.parent.mkdir()

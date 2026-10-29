@@ -94,7 +94,7 @@ def test_validation_does_not_echo_passwords(teacher_api):
     assert "SECRET" not in response.text
 
 
-def test_grade_rejects_precision_and_blank_reasons():
+def test_grade_rejects_extra_precision_and_accepts_blank_reason():
     from app.schemas.teacher import StudentInput
 
     assert (
@@ -103,12 +103,11 @@ def test_grade_rejects_precision_and_blank_reasons():
         ).password
         == "  preserve-spaces  "
     )
-    with pytest.raises(ValidationError):
-        TeacherGradeCorrectionInput(
-            expected_version=1,
-            reason="   ",
-            rubric_scores=[{"rubric_item_id": 1, "score": 80}],
-        )
+    assert TeacherGradeCorrectionInput(
+        expected_version=1,
+        reason="   ",
+        rubric_scores=[{"rubric_item_id": 1, "score": 80}],
+    ).reason == ""
     with pytest.raises(ValidationError):
         TeacherGradeCorrectionInput(
             expected_version=1,

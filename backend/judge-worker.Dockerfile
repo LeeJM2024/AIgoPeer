@@ -6,7 +6,8 @@ ENV HTTP_PROXY=${HTTP_PROXY} HTTPS_PROXY=${HTTPS_PROXY} \
     http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY}
 WORKDIR /app
 COPY backend/pyproject.toml ./
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir --upgrade 'pip>=26.2,<27' \
+    && pip install --no-cache-dir .
 COPY backend/ ./
 ENV PYTHONPATH=/app
 CMD ["python", "-m", "app.workers.judge_worker"]
