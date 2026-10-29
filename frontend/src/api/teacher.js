@@ -78,6 +78,19 @@ export const createTeacherFinalReview = (submissionId, payload) =>
 export const publishResults = (id) =>
   apiFetch(`/api/teacher/assignments/${id}/publish-results`, { method: 'POST' })
 export const getAiVideoStatus = () => apiFetch('/api/teacher/ai-video/status')
+export const getAiVideoSettings = () => apiFetch('/api/teacher/ai-video/settings')
+export const saveAiVideoSettings = (payload) => apiFetch('/api/teacher/ai-video/settings', {
+  method: 'PUT', body: JSON.stringify(payload),
+})
+export const deleteAiVideoSettings = () => apiFetch('/api/teacher/ai-video/settings', { method: 'DELETE' })
+export const testAiVideoSettings = (payload) => apiFetch('/api/teacher/ai-video/test', {
+  method: 'POST', body: JSON.stringify(payload),
+})
+export const getVideoAnalyses = (id) => apiFetch(`/api/teacher/submissions/${id}/video-analysis`)
+export const startVideoAnalysis = (id, force = false) => apiFetch(`/api/teacher/submissions/${id}/video-analysis`, {
+  method: 'POST', body: JSON.stringify({ force }),
+})
+export const cancelVideoAnalysis = (id, runId) => apiFetch(`/api/teacher/submissions/${id}/video-analysis/${runId}/cancel`, { method: 'POST' })
 
 export const createClass = (payload) =>
   apiFetch('/api/teacher/classes', {

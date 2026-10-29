@@ -13,7 +13,8 @@ import TeacherClassesView from '../views/teacher/TeacherClassesView.vue'
 import TeacherTopicsView from '../views/teacher/TeacherTopicsView.vue'
 import TeacherReviewView from '../views/teacher/TeacherReviewView.vue'
 import TeacherStatisticsView from '../views/teacher/TeacherStatisticsView.vue'
-import TeacherAiSettingsView from '../views/teacher/TeacherAiSettingsView.vue'
+import TeacherAiHubView from '../views/teacher/TeacherAiHubView.vue'
+import StudentKnowledgeView from '../views/student/StudentKnowledgeView.vue'
 import TeacherLearningAnalysisView from '../views/teacher/TeacherLearningAnalysisView.vue'
 import StudentSubjectiveSubmissionView from '../views/student/StudentSubjectiveSubmissionView.vue'
 import { currentUser } from '../api/auth'
@@ -22,6 +23,8 @@ const router = createRouter({
   history: createWebHistory(),
   scrollBehavior: () => ({ top: 0 }),
   routes: [
+    { path: '/student/knowledge', component: StudentKnowledgeView, meta: { student: true } },
+    { path: '/teacher/ai', component: TeacherAiHubView, meta: { teacher: true } },
     { path: '/teacher/learning-analysis', component: TeacherLearningAnalysisView, meta: { teacher: true } },
     { path: '/student/assignments/:assignmentId/subjective-submission', component: StudentSubjectiveSubmissionView, props: true, meta: { student: true } },
     {
@@ -89,7 +92,7 @@ const router = createRouter({
     },
     {
       path: '/teacher/ai-video',
-      component: TeacherAiSettingsView,
+      redirect: { path: '/teacher/ai', query: { tab: 'video' } },
       meta: { teacher: true },
     },
   ],

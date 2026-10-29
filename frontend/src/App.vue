@@ -32,7 +32,8 @@ const pageLabel = computed(() => {
       '/teacher/assignments': '作业与评分',
       '/teacher/classes': '班级与学生',
       '/teacher/topics': '知识点目录',
-      '/teacher/ai-video': '视频辅助评阅',
+      '/teacher/ai': 'AI 辅助',
+      '/student/knowledge': '知识点学习',
       '/student': '我的作业'
     }[path] || '课程工作台'
   )
@@ -109,17 +110,18 @@ onUnmounted(() =>
           ><UiIcon name="book" />知识点目录</RouterLink
         >
         <RouterLink to="/teacher/learning-analysis" active-class="is-active"><UiIcon name="book" />学习分析</RouterLink>
-        <RouterLink to="/teacher/ai-video" active-class="is-active"
-          ><UiIcon name="video" />视频辅助评阅</RouterLink
+        <RouterLink to="/teacher/ai" active-class="is-active"
+          ><UiIcon name="video" />AI 辅助</RouterLink
         >
       </nav>
       <nav v-else class="app-navigation" aria-label="学生端主导航">
         <RouterLink
           to="/student"
           active-class="is-active"
-          :class="{ 'is-active': route.path.startsWith('/student') }"
+          :class="{ 'is-active': route.path === '/student' || route.path.startsWith('/student/assignments/') }"
           ><UiIcon name="assignments" />我的作业</RouterLink
         >
+        <RouterLink to="/student/knowledge" active-class="is-active"><UiIcon name="book" />知识点学习</RouterLink>
         <RouterLink
           v-if="hasReviewTasks"
           to="/reviewer/tasks"

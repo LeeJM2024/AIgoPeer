@@ -29,6 +29,7 @@ from app.services.random_review_service import (
 from app.services.teacher_programming import get_programming_problem, save_programming_problem
 from app.services.teacher_workflow import audit, lock_assignment
 from app.services.video_ai_provider import get_video_provider_status
+from app.services.video_ai_settings import read_config
 
 router = APIRouter()
 
@@ -364,7 +365,11 @@ def initialize_review_tasks(
 
 
 @router.get("/ai-video/status", response_model=ApiResponse)
-def ai_video_status(_: CurrentUser = Depends(require_teacher)) -> ApiResponse:
+def ai_video_status(teacher: CurrentUser = Depends(require_teacher),
+                    db: Session = Depends(get_db)) -> ApiResponse:
+    configured = read_config(db, teacher.id)
+    if configured:
+        return ApiResponse(data=configured)
     status_value = get_video_provider_status(settings)
     return ApiResponse(data=status_value.__dict__)
 

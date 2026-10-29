@@ -6,6 +6,31 @@ import { getEvidence, getMaterial } from '../../api/teacher'
 
 vi.mock('../../api/teacher', () => ({ getEvidence: vi.fn(), getMaterial: vi.fn() }))
 
+it('点击 AI 时间点会加载视频并在元数据就绪后定位', async () => {
+  getEvidence.mockResolvedValue({ version: 1, is_current: true, archive_available: true,
+    materials: [{ kind: 'VIDEO', path: 'lesson.mp4' }], reviews: [], anomalies: [] })
+  getMaterial.mockResolvedValue(new Blob(['video'], { type: 'video/mp4' }))
+  const originalCreate = URL.createObjectURL, originalRevoke = URL.revokeObjectURL
+  URL.createObjectURL = vi.fn(() => 'blob:video-test')
+  URL.revokeObjectURL = vi.fn()
+  const wrapper = mount(SubmissionEvidence, { props: { submissionId: 45 }, global: {
+    stubs: { VideoAnalysis: { name: 'VideoAnalysis', template: '<button @click="$emit(\'seek\', 75)">回看证据</button>' } },
+  } })
+  try {
+    await flushPromises()
+    await wrapper.findComponent({ name: 'VideoAnalysis' }).get('button').trigger('click')
+    await flushPromises()
+    expect(getMaterial).toHaveBeenCalledWith(45, 'lesson.mp4')
+    const player = wrapper.get('video')
+    Object.defineProperty(player.element, 'duration', { value: 125 })
+    await player.trigger('loadedmetadata')
+    expect(player.element.currentTime).toBe(75)
+  } finally {
+    wrapper.unmount()
+    URL.createObjectURL = originalCreate; URL.revokeObjectURL = originalRevoke
+  }
+})
+
 it('教师能查看最新评分与每次修改的前后分数、评语、原因和时间', async () => {
   const snapshot = (score, comment) => ({ rubric_scores: [{ rubric_item_id: 2, name: '正确性', max_score: 100, score }], comment })
   getEvidence.mockResolvedValue({ version: 1, is_current: true, archive_available: false, materials: [], anomalies: [],

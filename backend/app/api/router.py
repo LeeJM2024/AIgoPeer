@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.routes import (
     auth,
+    course_ai,
     health,
     internal_review,
     reviewer_tasks,
@@ -10,6 +11,7 @@ from app.api.routes import (
     teacher_grades,
     teacher_management,
     teacher_reports,
+    teacher_video_ai,
 )
 from app.api.routes.student import assignments as student_assignments
 from app.api.routes.student import (
@@ -38,6 +40,8 @@ course_router.include_router(teacher_grades.router, prefix="/teacher", tags=["te
 course_router.include_router(teacher_management.router, prefix="/teacher", tags=["teacher-management"])
 course_router.include_router(teacher_reports.router, prefix="/teacher", tags=["teacher-reports"])
 course_router.include_router(teacher_evidence.router, prefix="/teacher", tags=["teacher-evidence"])
+course_router.include_router(teacher_video_ai.router, prefix="/teacher", tags=["teacher-video-ai"])
+course_router.include_router(course_ai.router, tags=["course-ai"])
 api_router.include_router(course_router)
 internal_router = APIRouter(dependencies=[Depends(require_internal_service)])
 internal_router.include_router(

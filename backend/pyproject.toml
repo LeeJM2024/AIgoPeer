@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "AlgoPeer FastAPI backend"
 requires-python = ">=3.11"
 dependencies = [
+  "cryptography>=50,<51",
   "certifi>=2026.10.19",
+  "httpx>=0.28,<1",
   "alembic>=1.14,<2",
   "docker>=7,<8",
   "fastapi>=0.162,<0.163",

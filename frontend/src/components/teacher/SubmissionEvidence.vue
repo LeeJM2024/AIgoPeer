@@ -1,6 +1,7 @@
 <script setup>
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import ReviewEvidence from './ReviewEvidence.vue'
+import VideoAnalysis from './VideoAnalysis.vue'
 import { getEvidence, getMaterial } from '../../api/teacher'
 
 const props = defineProps({ submissionId: { type: Number, required: true }, rubricItems: { type: Array, default: () => [] } })
@@ -9,6 +10,28 @@ const evidence = ref(null),
   busy = ref(false),
   preview = ref(null)
 let generation = 0
+const videoElement = ref(null)
+let pendingSeek = null
+function seekLoaded() {
+  if (pendingSeek !== null && videoElement.value) {
+    videoElement.value.currentTime = Math.min(pendingSeek, videoElement.value.duration || pendingSeek)
+    pendingSeek = null
+    videoElement.value.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    videoElement.value.focus()
+  }
+}
+async function seekVideo(seconds) {
+  const version = generation
+  if (preview.value?.kind !== 'video') {
+    const item = evidence.value?.materials.find((m) => m.kind === 'VIDEO')
+    if (!item || busy.value) return
+    await open(item)
+  }
+  if (generation !== version || preview.value?.kind !== 'video') return
+  pendingSeek = seconds
+  await nextTick()
+  if (videoElement.value?.readyState >= 1) seekLoaded()
+}
 const total = (snapshot) => (snapshot?.rubric_scores || []).reduce((sum, item) => sum + Number(item.score), 0).toFixed(2)
 const previousScore = (revision, id) => revision.before.rubric_scores.find((item) => item.rubric_item_id === id)?.score
 function clearPreview() {
@@ -22,6 +45,7 @@ watch(
     evidence.value = null
     error.value = ''
     busy.value = false
+    pendingSeek = null
     clearPreview()
     try {
       const data = await getEvidence(id)
@@ -150,14 +174,18 @@ async function open(item, download = false) {
           </button>
         </div>
         <video
+          ref="videoElement"
           v-if="preview.kind === 'video'"
           :src="preview.url"
           controls
           preload="metadata"
           aria-label="学生微课视频"
+          tabindex="0"
+          @loadedmetadata="seekLoaded"
         />
         <pre v-else>{{ preview.content }}</pre>
       </div>
+      <VideoAnalysis v-if="evidence.materials.some((item) => item.kind === 'VIDEO')" :key="submissionId" :submission-id="submissionId" @seek="seekVideo" />
       <details>
         <summary>
           五人当前评分与评语（{{

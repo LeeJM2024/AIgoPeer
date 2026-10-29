@@ -3,9 +3,11 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { getClasses, getLearningAnalysis } from '../../api/teacher'
 import { assignmentTypeLabel } from '../../presentation/assignments'
+import AiConversation from '../../components/AiConversation.vue'
 
 const route = useRoute(), router = useRouter()
 const data = ref(null), classes = ref([]), loading = ref(false), error = ref('')
+const assistantOpen = ref(false)
 const classId = ref(String(route.query.class_id || ''))
 let generation = 0
 const percent = value => value == null ? '暂无数据' : `${(value * 100).toFixed(1)}%`
@@ -32,6 +34,8 @@ onBeforeUnmount(() => { generation++ })
   <div class="view-stack">
     <header class="page-heading"><div><p class="muted">课程学习档案</p><h1>学习过程分析</h1><p>从提交轨迹、常见错误到知识点表现，定位需要讲解和练习的内容。</p></div><button class="button button-secondary" :disabled="loading" @click="load">{{ loading ? '正在刷新…' : '刷新数据' }}</button></header>
     <label class="analysis-filter">查看班级<select v-model="classId" :disabled="loading" @change="changeClass"><option value="">全部班级</option><option v-for="item in classes" :key="item.id" :value="String(item.id)">{{ item.name }} · {{ item.course_term }}</option></select></label>
+    <div><button type="button" class="button button-secondary" :aria-expanded="assistantOpen" aria-controls="teaching-assistant" @click="assistantOpen = !assistantOpen">{{ assistantOpen ? '收起教学助理' : 'AI 教学建议' }}</button></div>
+    <section v-if="assistantOpen" id="teaching-assistant" class="data-section"><AiConversation :key="classId || 'all'" mode="TEACHING" :context-id="classId" /></section>
     <p v-if="error" class="notice notice-error" role="alert">{{ error }} <button class="text-button" @click="load">重试</button></p>
     <p v-if="loading" role="status">正在汇总真实提交与已发布成绩…</p>
     <template v-if="data">
