@@ -1,18 +1,12 @@
 import { apiFetch } from './client'
 
 export const getReviewEligibility = () => apiFetch('/api/reviewer/eligibility')
-export const openReviewAnswer = (taskId) => apiFetch(`/api/reviewer/review-tasks/${taskId}/answer`, { method: 'POST' })
 
 export const getMyReviewTasks = (status = 'PENDING') =>
   apiFetch(`/api/reviewer/review-tasks/mine?status=${encodeURIComponent(status)}`)
 
 export const submitReview = (taskId, payload) =>
   apiFetch(`/api/reviewer/review-tasks/${taskId}/reviews`, {
-    method: 'POST', body: JSON.stringify(payload)
-  })
-
-export const reviseReview = (taskId, payload) =>
-  apiFetch(`/api/reviewer/review-tasks/${taskId}/revisions`, {
     method: 'POST', body: JSON.stringify(payload)
   })
 

@@ -3,11 +3,6 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import StudentProjectSubmissionView from './StudentProjectSubmissionView.vue'
 import * as api from '../../api/student/projectSubmissions'
-import { emptyProjectForm, inspectProjectArchive } from '../../utils/projectArchive'
-
-vi.mock('../../utils/projectArchive', async (importOriginal) => ({
-  ...await importOriginal(), inspectProjectArchive: vi.fn()
-}))
 
 vi.mock('vue-router', () => ({ RouterLink: { template: '<a><slot /></a>' } }))
 vi.mock('../../api/student/projectSubmissions', () => ({
@@ -31,11 +26,9 @@ async function open() {
 }
 async function upload(w) {
   const file = new File(['test archive'], 'TEST_学生_89.zip', { type: 'application/zip' })
-  file.arrayBuffer = async () => new ArrayBuffer(0)
   const input = w.get('input[type=file]')
   Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
   await input.trigger('change')
-  await flushPromises()
   await button(w, '上传并检查').trigger('click')
   await flushPromises()
 }
@@ -43,7 +36,6 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-10-14T06:00:00Z'))
   vi.resetAllMocks()
-  inspectProjectArchive.mockResolvedValue({ form: emptyProjectForm(), candidates: { pptPath: [], videoPath: [], readmePath: [] }, notices: [], manifestUsed: false })
   api.getAssignmentTopics.mockResolvedValue({ topics: [], claim: { id: 1, topic: { code: '89', name: '动态规划' } } })
   api.getCurrentProjectSubmission.mockResolvedValue(view())
   api.getMaterialCheck.mockResolvedValue(check())
@@ -191,163 +183,4 @@ it('新上传触发历史第一页刷新', async () => {
   await upload(w)
   expect(api.getProjectSubmissionHistory).toHaveBeenCalledTimes(2)
   expect(api.getProjectSubmissionHistory).toHaveBeenLastCalledWith(1, 1, 5)
-})
-
-const courseTopics = [
-  { id: 2, code: '02', chapter: '图搜索', name: '广度优先搜索 BFS', description: '掌握队列、分层遍历与访问标记。' },
-  { id: 3, code: '03', chapter: '图搜索', name: '深度优先搜索 DFS', description: '掌握递归或显式栈。' },
-  { id: 7, code: '07', chapter: '分治算法', name: '分治框架与递归设计', description: '以归并排序展示递归调用树与执行过程。' },
-]
-
-function unclaimed() {
-  api.getAssignmentTopics.mockResolvedValue({ topics: courseTopics, claim: null })
-  api.getCurrentProjectSubmission.mockResolvedValue(view(null))
-}
-
-it('先选章节再选该章节的知识点，切换章节清空旧选项和说明', async () => {
-  unclaimed()
-  const w = await open()
-  expect(w.get('#topic').element.disabled).toBe(true)
-  expect(button(w, '确认认领').element.disabled).toBe(true)
-  expect(w.findAll('#chapter option').map((o) => o.text())).toEqual(['请选择所属大章节', '图搜索', '分治算法'])
-  await w.get('#chapter').setValue('图搜索')
-  expect(w.findAll('#topic option').map((o) => o.text())).toEqual(['请选择知识点', '02 · 广度优先搜索 BFS', '03 · 深度优先搜索 DFS'])
-  await w.get('#topic').setValue('2')
-  expect(w.get('#topic-description').text()).toContain(courseTopics[0].description)
-  expect(button(w, '确认认领').element.disabled).toBe(false)
-  await w.get('#chapter').setValue('分治算法')
-  expect(w.get('#topic').element.value).toBe('')
-  expect(button(w, '确认认领').element.disabled).toBe(true)
-  expect(w.get('#topic-description').text()).not.toContain(courseTopics[0].description)
-  expect(w.findAll('#topic option').map((o) => o.text())).toEqual(['请选择知识点', '07 · 分治框架与递归设计'])
-})
-
-it('认领期间锁定选择，成功后展示章节、知识点和内容并沿用上传表单', async () => {
-  unclaimed()
-  let resolveClaim
-  api.claimTopic.mockImplementation(() => new Promise((resolve) => { resolveClaim = resolve }))
-  const w = await open()
-  await w.get('#chapter').setValue('分治算法')
-  await w.get('#topic').setValue('7')
-  await button(w, '确认认领').trigger('click')
-  expect(api.claimTopic).toHaveBeenCalledWith(1, 7)
-  expect(w.get('#chapter').element.disabled).toBe(true)
-  expect(w.get('#topic').element.disabled).toBe(true)
-  resolveClaim({ id: 8, topic: courseTopics[2] })
-  await flushPromises()
-  expect(w.get('.claim-summary').text()).toBe('已认领：分治算法 / 07 · 分治框架与递归设计')
-  expect(w.text()).toContain(courseTopics[2].description)
-  expect(w.find('input[type=file]').exists()).toBe(true)
-  expect(w.find('#chapter').exists()).toBe(false)
-  expect(api.submitProject).not.toHaveBeenCalled()
-})
-
-it('重新进入恢复认领的章节与说明，不要求重新选择', async () => {
-  api.getAssignmentTopics.mockResolvedValue({ topics: courseTopics, claim: { id: 8, topic: courseTopics[0] } })
-  const w = await open()
-  expect(w.get('.claim-summary').text()).toContain('图搜索 / 02 · 广度优先搜索 BFS')
-  expect(w.text()).toContain(courseTopics[0].description)
-  expect(w.find('#chapter').exists()).toBe(false)
-})
-
-it('目录为空时说明原因并禁止认领', async () => {
-  unclaimed()
-  api.getAssignmentTopics.mockResolvedValue({ topics: [], claim: null })
-  const w = await open()
-  expect(w.text()).toContain('暂无可选知识点')
-  expect(w.get('#chapter').element.disabled).toBe(true)
-  expect(button(w, '确认认领').element.disabled).toBe(true)
-})
-
-it('认领失败保留选择供重试，切换作业清除上次选择', async () => {
-  unclaimed()
-  api.claimTopic.mockRejectedValue(new Error('认领失败，请重试'))
-  const w = await open()
-  await w.get('#chapter').setValue('图搜索')
-  await w.get('#topic').setValue('2')
-  await button(w, '确认认领').trigger('click')
-  await flushPromises()
-  expect(w.text()).toContain('认领失败，请重试')
-  expect(w.get('#topic').element.value).toBe('2')
-  expect(w.get('#chapter').element.disabled).toBe(false)
-  await w.setProps({ assignmentId: '2' })
-  await flushPromises()
-  expect(w.get('#chapter').element.value).toBe('')
-  expect(w.get('#topic').element.disabled).toBe(true)
-  expect(button(w, '确认认领').element.disabled).toBe(true)
-})
-
-async function selectArchive(w, name = 'TEST_学生_89.zip') {
-  const file = new File(['zip'], name, { type: 'application/zip' })
-  file.arrayBuffer = async () => new ArrayBuffer(0)
-  const input = w.get('#zip-file')
-  Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
-  await input.trigger('change')
-  await flushPromises()
-}
-
-function detected(pptPath = 'slides.pptx') {
-  return { form: { ...emptyProjectForm(), pptPath, videoPath: 'video.mp4', readmePath: 'README.md',
-    sourcePaths: 'src/main.cpp', examplePages: '4,5,6',
-    tests: [1, 2, 3].map((n) => ({ inputPath: `tests/${n}.in`, expectedPath: `tests/${n}.out` })) },
-  candidates: { pptPath: [pptPath], videoPath: ['video.mp4'], readmePath: ['README.md'] }, notices: [], manifestUsed: true }
-}
-
-it('选包后自动填写清单，用户修改仍随原上传接口提交', async () => {
-  inspectProjectArchive.mockResolvedValue(detected())
-  api.submitProject.mockResolvedValue({ submission_id: 72, version: 2 })
-  const w = await open()
-  await selectArchive(w)
-  expect(w.get('input[placeholder="slides/lesson.pptx"]').element.value).toBe('slides.pptx')
-  expect(w.get('input[placeholder="4, 6, 8"]').element.value).toBe('4,5,6')
-  await w.get('input[placeholder="slides/lesson.pptx"]').setValue('edited.pptx')
-  await button(w, '上传并检查').trigger('click')
-  await flushPromises()
-  expect(api.submitProject).toHaveBeenCalledWith(1, expect.any(File), expect.objectContaining({
-    ppt_path: 'edited.pptx', examples: [{ location: 'PPT', pages: [4, 5, 6] }],
-    tests: [{ input_path: 'tests/1.in', expected_path: 'tests/1.out' },
-      { input_path: 'tests/2.in', expected_path: 'tests/2.out' }, { input_path: 'tests/3.in', expected_path: 'tests/3.out' }]
-  }))
-})
-
-it('多个PPT可选择，识别失败仍能手动填写', async () => {
-  const result = detected('')
-  result.candidates.pptPath = ['first.pptx', 'second.pptx']
-  inspectProjectArchive.mockResolvedValueOnce(result).mockRejectedValueOnce(new Error('ZIP 格式无效'))
-  const w = await open()
-  await selectArchive(w)
-  await w.get('select[aria-label="选择PPT文件"]').setValue('second.pptx')
-  expect(w.get('input[placeholder="slides/lesson.pptx"]').element.value).toBe('second.pptx')
-  await selectArchive(w, 'broken.zip')
-  expect(w.text()).toContain('可以手动填写材料清单')
-  expect(w.get('input[placeholder="slides/lesson.pptx"]').element.disabled).toBe(false)
-  expect(w.get('input[placeholder="slides/lesson.pptx"]').element.value).toBe('')
-})
-
-it('识别时禁用提交，先选包的延迟结果不能覆盖后选包', async () => {
-  let resolveOld
-  inspectProjectArchive.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve }))
-    .mockResolvedValueOnce(detected('new.pptx'))
-  const w = await open()
-  await selectArchive(w, 'old.zip')
-  expect(w.get('.material-fields').element.disabled).toBe(true)
-  expect(button(w, '正在识别材料').element.disabled).toBe(true)
-  await selectArchive(w, 'new.zip')
-  resolveOld(detected('old.pptx'))
-  await flushPromises()
-  expect(w.get('input[placeholder="slides/lesson.pptx"]').element.value).toBe('new.pptx')
-  expect(button(w, '上传并检查').element.disabled).toBe(false)
-})
-
-it('切换作业时作废正在识别的包和表单内容', async () => {
-  let resolveOld
-  inspectProjectArchive.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve }))
-  const w = await open()
-  await selectArchive(w)
-  await w.setProps({ assignmentId: '2' })
-  await flushPromises()
-  resolveOld(detected('old.pptx'))
-  await flushPromises()
-  expect(w.get('input[placeholder="slides/lesson.pptx"]').element.value).toBe('')
-  expect(w.text()).not.toContain('已读取包内清单')
 })

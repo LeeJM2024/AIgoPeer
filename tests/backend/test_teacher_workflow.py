@@ -9,8 +9,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
 from app.core.security import hash_password, verify_password
 from app.schemas.teacher import (
-    AllocationStartInput,
     AssignmentCreate,
+    PanelConfigInput,
+    ReviewPanelsInput,
     RubricItemInput,
 )
 from app.services.teacher_grade_service import calculate_final_score
@@ -30,10 +31,20 @@ def test_assignment_requires_two_classes_and_exact_weights() -> None:
         )
 
 
-def test_allocation_preview_hash_is_validated():
+def test_panels_must_be_opposite_directions() -> None:
     with pytest.raises(ValidationError):
-        AllocationStartInput(expected_snapshot_hash="invalid")
-    assert AllocationStartInput(expected_snapshot_hash="a"*64).expected_snapshot_hash == "a"*64
+        ReviewPanelsInput(
+            panels=[
+                PanelConfigInput(
+                    target_class_id=1, reviewer_class_id=2, reviewer_ids=[1, 2, 3, 4, 5]
+                ),
+                PanelConfigInput(
+                    target_class_id=3,
+                    reviewer_class_id=1,
+                    reviewer_ids=[6, 7, 8, 9, 10],
+                ),
+            ]
+        )
 
 
 def test_final_score_uses_published_weights_without_changing_teacher_score() -> None:

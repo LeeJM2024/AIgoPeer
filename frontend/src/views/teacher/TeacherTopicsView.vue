@@ -190,9 +190,3 @@ onMounted(async () => {
     </section>
   </div>
 </template>
-
-<style scoped>
-.form-grid {
-  align-items: start;
-}
-</style>

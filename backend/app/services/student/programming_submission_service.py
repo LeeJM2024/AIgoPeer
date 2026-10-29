@@ -35,7 +35,7 @@ def _student_programming_assignment(*, db: Session, assignment_id: int, student_
     return db.execute(
         text(
             """
-            SELECT a.id, a.title, a.status, a.submit_deadline, a.submissions_closed_at, assignment_class.class_id,
+            SELECT a.id, a.title, a.status, a.submit_deadline, assignment_class.class_id,
                    problem.statement, problem.input_description, problem.output_description,
                    problem.time_limit_ms, problem.memory_limit_mb
             FROM assignments AS a
@@ -99,8 +99,6 @@ def create_code_submission(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NOT_FOUND")
     if str(assignment["status"]) not in {"PUBLISHED", "SUBMITTING"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STATE")
-    if assignment["submissions_closed_at"] is not None:
-        raise HTTPException(409, "SUBMISSION_CLOSED")
     deadline = assignment["submit_deadline"]
     if deadline is not None and deadline <= datetime.now(UTC):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STATE")

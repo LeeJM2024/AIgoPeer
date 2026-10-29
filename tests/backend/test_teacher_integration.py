@@ -57,45 +57,6 @@ def test_publish_freezes_latest_version_weights_and_is_idempotent(grading_course
     assert response.status_code == 409
 
 
-@pytest.mark.parametrize(
-    "teacher_weight,review_weight,expected", [(0.7, 0.3, 87), (1, 0, 90), (0, 1, 80)]
-)
-def test_configured_weights_are_used_and_snapshotted(
-    course, request, teacher_weight, review_weight, expected
-):
-    c = course
-    url = f"/api/teacher/assignments/{c['id']}"
-    detail = c["client"].get(url).json()["data"]
-    response = c["client"].put(
-        url,
-        json={
-            **c["payload"],
-            "expected_updated_at": detail["updated_at"],
-            "teacher_weight": teacher_weight,
-            "designated_review_weight": review_weight,
-        },
-    )
-    assert response.status_code == 200, response.text
-    c = request.getfixturevalue("grading_course")
-    for sid in c["submissions"]:
-        save_and_lock(c, sid)
-    response = c["client"].post(f"{url}/publish-results")
-    assert response.status_code == 200, response.text
-    with c["engine"].connect() as conn:
-        rows = conn.execute(
-            text(
-                "SELECT final_score,teacher_weight,designated_review_weight FROM final_grades"
-            )
-        ).all()
-        assert len(rows) == len(c["submissions"])
-        assert all(
-            float(row.final_score) == expected
-            and float(row.teacher_weight) == teacher_weight
-            and float(row.designated_review_weight) == review_weight
-            for row in rows
-        )
-
-
 def test_unlocked_correction_blocks_old_locked_score(grading_course):
     c = grading_course
     for sid in c["submissions"]:
@@ -119,6 +80,7 @@ def test_unlocked_correction_blocks_old_locked_score(grading_course):
 @pytest.mark.parametrize(
     "condition,code",
     [
+        ("missing", "REVIEWS_INCOMPLETE"),
         ("aggregate", "AGGREGATE_NOT_READY"),
         ("stale", "AGGREGATE_STALE"),
         ("material", "MATERIAL_NOT_VALID"),
@@ -131,7 +93,13 @@ def test_publication_failures_are_atomic(grading_course, condition, code):
         save_and_lock(c, sid)
     with c["engine"].begin() as conn:
         sid = c["submissions"][-1]
-        if condition == "aggregate":
+        if condition == "missing":
+            conn.execute(
+                text(
+                    "UPDATE review_tasks SET status='PENDING' WHERE id=(SELECT max(id) FROM review_tasks)"
+                )
+            )
+        elif condition == "aggregate":
             conn.execute(
                 text("DELETE FROM designated_review_aggregates WHERE submission_id=:s"),
                 {"s": sid},
@@ -139,7 +107,7 @@ def test_publication_failures_are_atomic(grading_course, condition, code):
         elif condition == "stale":
             conn.execute(
                 text(
-                    "UPDATE designated_review_aggregates SET created_at=now()-interval '1 day' WHERE submission_id=:s"
+                    "UPDATE review_tasks SET submitted_at=now()+interval '1 second' WHERE submission_id=:s"
                 ),
                 {"s": sid},
             )
@@ -283,7 +251,7 @@ def test_import_is_atomic_idempotent_and_does_not_reset_password(
         )
 
 
-def test_draft_edit_defers_directions_until_publish_and_rules_are_frozen(course):
+def test_draft_edit_preserves_panels_and_published_rules_are_frozen(course):
     c = course
     url = f"/api/teacher/assignments/{c['id']}"
     payload = {
@@ -292,16 +260,13 @@ def test_draft_edit_defers_directions_until_publish_and_rules_are_frozen(course)
         "expected_updated_at": c["client"].get(url).json()["data"]["updated_at"],
     }
     assert c["client"].put(url, json=payload).status_code == 200
-    assert c["client"].get(url).json()["data"]["panels"] == []
-    assert c["client"].post(url + "/publish").status_code == 200
     assert len(c["client"].get(url).json()["data"]["panels"]) == 2
+    assert c["client"].post(url + "/publish").status_code == 200
     assert c["client"].put(url, json=payload).status_code == 409
     assert c["client"].delete(url).status_code == 409
 
 
-def test_high_risk_requires_final_review_and_medium_resolution_is_immutable(
-    grading_course,
-):
+def test_high_risk_requires_final_review_and_medium_resolution_is_immutable(grading_course):
     c = grading_course
     with c["engine"].begin() as conn:
         high_aid = conn.execute(
@@ -317,13 +282,9 @@ def test_high_risk_requires_final_review_and_medium_resolution_is_immutable(
         == 409
     )
     with c["engine"].connect() as conn:
-        assert (
-            conn.execute(
-                text("SELECT status FROM anomaly_records WHERE id=:id"),
-                {"id": high_aid},
-            ).scalar_one()
-            == "OPEN"
-        )
+        assert conn.execute(
+            text("SELECT status FROM anomaly_records WHERE id=:id"), {"id": high_aid}
+        ).scalar_one() == "OPEN"
 
     with c["engine"].begin() as conn:
         aid = conn.execute(
@@ -332,12 +293,9 @@ def test_high_risk_requires_final_review_and_medium_resolution_is_immutable(
             {"s": c["submissions"][0]},
         ).scalar_one()
     url = f"/api/teacher/anomalies/{aid}/resolve"
-    assert (
-        c["client"]
-        .post(url, json={"status": "DISMISSED", "note": "已核对原始证据"})
-        .status_code
-        == 200
-    )
+    assert c["client"].post(
+        url, json={"status": "DISMISSED", "note": "已核对原始证据"}
+    ).status_code == 200
     assert (
         c["client"]
         .post(url, json={"status": "CONFIRMED", "note": "重复操作"})
@@ -393,7 +351,7 @@ def test_migration_downgrade_upgrade(pg_engine):
         command.upgrade(config, "head")
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "20261022_0010"
+            == "20261010_0008"
         )
 
 
@@ -461,11 +419,30 @@ def test_second_insert_failure_rolls_back_whole_publication(grading_course):
         )
 
 
-def test_fixed_panel_configuration_endpoint_is_removed(course):
-    response = course["client"].put(
-        f"/api/teacher/assignments/{course['id']}/review-panels", json={"panels": []}
+@pytest.mark.parametrize("bad_panels", ["four", "duplicate", "same_class"])
+def test_invalid_panel_configuration_is_rejected(course, bad_panels):
+    import copy
+
+    c = course
+    panels = copy.deepcopy(c["panels"])
+    if bad_panels == "four":
+        panels[0]["reviewer_ids"].pop()
+    elif bad_panels == "duplicate":
+        panels[0]["reviewer_ids"][1] = panels[0]["reviewer_ids"][0]
+    else:
+        panels[0]["reviewer_ids"] = c["reviewers"][0]
+    response = c["client"].put(
+        f"/api/teacher/assignments/{c['id']}/review-panels", json={"panels": panels}
     )
-    assert response.status_code == 404
+    assert response.status_code == 422
+    assert (
+        len(
+            c["client"]
+            .get(f"/api/teacher/assignments/{c['id']}")
+            .json()["data"]["panels"]
+        )
+        == 2
+    )
 
 
 def test_published_rubric_cannot_be_deleted_or_reweighted(grading_course):
@@ -500,9 +477,9 @@ def test_draft_delete_and_class_change_clear_panels(course):
     assert c["client"].get(url).status_code == 404
 
 
-def test_enrollment_cannot_break_assigned_reviewer_pool(grading_course):
-    c = grading_course
-    sid = c["reviewers"][0][1]
+def test_enrollment_cannot_break_saved_panel(course):
+    c = course
+    sid = c["reviewers"][0][0]
     assert (
         c["client"]
         .delete(f"/api/teacher/classes/{c['classes'][0]}/students/{sid}")
@@ -511,12 +488,12 @@ def test_enrollment_cannot_break_assigned_reviewer_pool(grading_course):
     )
     response = c["client"].post(
         f"/api/teacher/classes/{c['classes'][1]}/students/import",
-        json={"students": [{"student_no": "TEST-0-1", "name": "虚构学生"}]},
+        json={"students": [{"student_no": "TEST-0-0", "name": "虚构学生"}]},
     )
     assert response.status_code == 409 and "REVIEWER_CLASS_CONFLICT" in response.text
 
 
-def test_downgrade_refuses_to_reinterpret_published_random_history(grading_course):
+def test_upgrade_preserves_published_history(grading_course):
     from pathlib import Path
 
     from alembic import command
@@ -535,10 +512,10 @@ def test_downgrade_refuses_to_reinterpret_published_random_history(grading_cours
     config.set_main_option(
         "script_location", str(Path(__file__).resolve().parents[2] / "backend/alembic")
     )
-    with pytest.raises(DBAPIError), c["engine"].begin() as conn:
+    with c["engine"].begin() as conn:
         config.attributes["connection"] = conn
-        command.downgrade(config, "20261022_0009")
-    with c["engine"].connect() as conn:
+        command.downgrade(config, "20260929_0002")
+        command.upgrade(config, "head")
         assert (
             conn.execute(
                 text("SELECT count(*) FROM teacher_grades WHERE locked_at IS NOT NULL")

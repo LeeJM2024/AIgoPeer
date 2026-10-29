@@ -19,7 +19,6 @@ from app.schemas.student_submission import (
     ProjectSubmissionHistoryPage,
     ProjectSubmissionView,
 )
-from app.services.assignment_lifecycle import has_assigned_work
 
 ARCHIVE_CHUNK_SIZE = 1024 * 1024
 
@@ -40,9 +39,7 @@ def _visible_project_assignment(*, db: Session, assignment_id: int, student_id: 
         text(
             """
             SELECT assignment_class.class_id, assignment.title, assignment.status,
-                   assignment.submit_deadline, assignment.submissions_closed_at, clock_timestamp() AS server_now,
-                   EXISTS(SELECT 1 FROM review_tasks rt JOIN submissions s ON s.id=rt.submission_id
-                     WHERE s.assignment_id=assignment.id AND s.author_id=:student_id AND s.is_current AND rt.is_active) AS assigned
+                   assignment.submit_deadline, clock_timestamp() AS server_now
             FROM assignments AS assignment
             JOIN assignment_classes AS assignment_class ON assignment_class.assignment_id = assignment.id
             JOIN enrollments AS enrollment ON enrollment.class_id = assignment_class.class_id
@@ -62,7 +59,7 @@ def _visible_project_assignment(*, db: Session, assignment_id: int, student_id: 
 
 
 def _can_submit(assignment) -> bool:
-    return assignment["status"] in {"PUBLISHED", "SUBMITTING", "REVIEWER_GRADING"} and assignment["submissions_closed_at"] is None and not assignment["assigned"] and (
+    return assignment["status"] in {"PUBLISHED", "SUBMITTING"} and (
         assignment["submit_deadline"] is None
         or assignment["submit_deadline"] > assignment["server_now"]
     )
@@ -115,8 +112,6 @@ def get_upload_context(*, db: Session, assignment_id: int, student_id: int) -> U
         db=db, assignment_id=assignment_id, student_id=student_id
     )
     if not _can_submit(assignment):
-        if assignment["assigned"]:
-            raise HTTPException(409, "SUBMISSION_ALREADY_ASSIGNED")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STATE")
 
     claim = db.execute(
@@ -196,8 +191,6 @@ def create_pending_submission(
     checksum: str,
 ) -> ProjectSubmissionCreated:
     try:
-        if has_assigned_work(db, context.assignment_id, context.student_id):
-            raise HTTPException(409, "SUBMISSION_ALREADY_ASSIGNED")
         version = int(
             db.execute(
                 text(
@@ -233,8 +226,7 @@ def create_pending_submission(
                   :assignment_id, :student_id, :class_id, 'PENDING', :anonymous_token, clock_timestamp(),
                   :topic_claim_id, :version, TRUE, CAST(:manifest_json AS jsonb)
                 FROM assignments
-                WHERE id=:assignment_id AND status IN ('PUBLISHED', 'SUBMITTING', 'REVIEWER_GRADING')
-                  AND submissions_closed_at IS NULL AND closed_at IS NULL AND deleted_at IS NULL
+                WHERE id=:assignment_id AND status IN ('PUBLISHED', 'SUBMITTING')
                   AND (submit_deadline IS NULL OR submit_deadline > clock_timestamp())
                 RETURNING id
                 """

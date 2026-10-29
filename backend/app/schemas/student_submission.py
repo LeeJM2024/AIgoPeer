@@ -6,11 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.core.archive_security import safe_archive_path
-
 
 def validate_archive_path(value: str) -> str:
-    safe_archive_path(value)
     path = PurePosixPath(value)
     if not value or "\\" in value or path.is_absolute() or ".." in path.parts or value != path.as_posix():
         raise ValueError("archive paths must be non-empty relative POSIX paths")
@@ -37,7 +34,7 @@ class TopicClaimResponse(BaseModel):
 
 class ExampleReference(BaseModel):
     location: Literal["PPT", "FILE"]
-    pages: list[int] = Field(default_factory=list, max_length=100)
+    pages: list[int] = Field(default_factory=list)
     path: str | None = None
     count: int | None = Field(default=None, ge=1)
 
@@ -73,9 +70,9 @@ class TestReference(BaseModel):
 class ProjectManifest(BaseModel):
     ppt_path: str
     video_path: str
-    examples: list[ExampleReference] = Field(min_length=1, max_length=100)
-    source_paths: list[str] = Field(min_length=1, max_length=100)
-    tests: list[TestReference] = Field(min_length=3, max_length=100)
+    examples: list[ExampleReference] = Field(min_length=1)
+    source_paths: list[str] = Field(min_length=1)
+    tests: list[TestReference] = Field(min_length=3)
     readme_path: str
 
     _validate_ppt_path = field_validator("ppt_path")(validate_archive_path)

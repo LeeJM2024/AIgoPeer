@@ -6,7 +6,7 @@ import App from './App.vue'
 import { currentUser } from './api/auth'
 import { getReviewEligibility } from './api/reviewer'
 
-vi.mock('./api/auth', () => ({ currentUser: vi.fn(), logout: vi.fn(), changePassword: vi.fn() }))
+vi.mock('./api/auth', () => ({ currentUser: vi.fn(), logout: vi.fn() }))
 vi.mock('./api/reviewer', () => ({ getReviewEligibility: vi.fn() }))
 const wrappers = []
 async function open(path) {
@@ -18,7 +18,7 @@ async function open(path) {
   })
   await router.push(path)
   await router.isReady()
-  const wrapper = mount(App, { global: { plugins: [router], stubs: { ChangePasswordDialog: true } } })
+  const wrapper = mount(App, { global: { plugins: [router] } })
   wrappers.push(wrapper)
   await flushPromises()
   return wrapper
@@ -40,15 +40,13 @@ it.each([
   expect(wrapper.get('.brand-lockup').attributes('href')).toBe(role === 'TEACHER' ? '/teacher' : '/student')
   expect(wrapper.text()).not.toContain('AlgoPeer')
   expect(wrapper.get('.workspace-footer').text()).toContain('网络空间安全学院')
-  expect(wrapper.get('.account-details strong').text()).toBe('演示用户')
 })
 
-it('教师导航包含学习分析在内的六个实际入口，不请求学生评审资格', async () => {
+it('教师导航保留五个实际入口，不请求学生评审资格', async () => {
   currentUser.mockReturnValue({ role: 'TEACHER', name: '演示教师' })
   const wrapper = await open('/teacher')
   expect(wrapper.get('nav').attributes('aria-label')).toBe('教师端主导航')
-  expect(wrapper.findAll('nav a')).toHaveLength(6)
-  expect(wrapper.get('a[href="/teacher/learning-analysis"]').text()).toContain('学习分析')
+  expect(wrapper.findAll('nav a')).toHaveLength(5)
   expect(getReviewEligibility).not.toHaveBeenCalled()
   expect(wrapper.get('[aria-label="退出登录"]').exists()).toBe(true)
 })
@@ -69,15 +67,4 @@ it('资格读取失败时不凭空展示评审入口', async () => {
   getReviewEligibility.mockRejectedValue(new Error('离线'))
   const wrapper = await open('/student')
   expect(wrapper.find('a[href="/reviewer/tasks"]').exists()).toBe(false)
-})
-
-it.each(['TEACHER', 'STUDENT'])('%s 可从右上角打开和关闭修改密码窗口', async (role) => {
-  currentUser.mockReturnValue({ role, name: '王小明' })
-  const wrapper = await open(role === 'TEACHER' ? '/teacher' : '/student')
-  expect(wrapper.get('.account-details strong').text()).toBe('王小明')
-  await wrapper.get('[aria-label="修改密码"]').trigger('click')
-  expect(wrapper.findComponent({ name: 'ChangePasswordDialog' }).exists()).toBe(true)
-  wrapper.findComponent({ name: 'ChangePasswordDialog' }).vm.$emit('close')
-  await flushPromises()
-  expect(wrapper.findComponent({ name: 'ChangePasswordDialog' }).exists()).toBe(false)
 })

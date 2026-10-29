@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -9,15 +9,6 @@ from app.db.session import get_db
 from app.schemas.common import ApiResponse
 
 router = APIRouter()
-
-
-@router.get("/learning-analysis", response_model=ApiResponse)
-def learning_analysis(response: Response, class_id: int | None = Query(None, ge=1),
-                      _: CurrentUser = Depends(require_teacher), db: Session = Depends(get_db)):
-    from app.services.learning_analytics import get_learning_report
-
-    response.headers["Cache-Control"] = "private, no-store"
-    return ApiResponse(data=get_learning_report(db, class_id))
 
 
 @router.get("/assignments/{assignment_id}/statistics", response_model=ApiResponse)
@@ -56,7 +47,7 @@ def assignment_statistics(
         db.execute(
             text("""
         SELECT count(*) AS total, count(*) FILTER (WHERE rt.status='SUBMITTED') AS completed
-        FROM review_tasks rt JOIN review_panels p ON p.id=rt.panel_id WHERE p.assignment_id=:id AND rt.is_active
+        FROM review_tasks rt JOIN review_panels p ON p.id=rt.panel_id WHERE p.assignment_id=:id
     """),
             {"id": assignment_id},
         )

@@ -15,7 +15,6 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.parametrize("width,height", [(1440, 1000), (1024, 768)])
-@pytest.mark.parametrize("grading_course", ["pending"], indirect=True)
 def test_task_gated_reviewer_workflow(
     browser_app, tmp_path, monkeypatch, width, height
 ):
@@ -30,9 +29,10 @@ def test_task_gated_reviewer_workflow(
         archive.writestr("materials/001.md", "Anonymous algorithm explanation")
     with c["engine"].begin() as conn:
         conn.execute(text("UPDATE assignments SET status='REVIEWER_GRADING'"))
+        conn.execute(text("UPDATE review_tasks SET status='PENDING',submitted_at=NULL"))
         conn.execute(
             text("UPDATE users SET password_hash=:p WHERE id=:u"),
-            {"p": hash_password("Test-browser-123!"), "u": c["reviewers"][1][1]},
+            {"p": hash_password("Test-browser-123!"), "u": c["reviewers"][1][0]},
         )
         conn.execute(
             text("""INSERT INTO users(student_no,name,password_hash,system_role)
@@ -61,7 +61,7 @@ def test_task_gated_reviewer_workflow(
             page.wait_for_load_state("networkidle")
 
         try:
-            login("TEST-1-1")
+            login("TEST-1-0")
             page.get_by_role("link", name="评审任务", exact=True).click()
             expect(page.get_by_role("heading", name="我的评审任务")).to_be_visible()
             expect(

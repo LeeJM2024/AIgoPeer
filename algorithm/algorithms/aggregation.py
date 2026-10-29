@@ -1,4 +1,4 @@
-"""Deterministic, sparse MAP-EM aggregation within one cross-class direction."""
+"""Pure deterministic MAP-EM aggregation for one fixed five-reviewer panel."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from app.schemas.review import (
 )
 
 ALGORITHM_NAME = "panel_bayesian_robust"
-ALGORITHM_VERSION = "2.1.0"
+ALGORITHM_VERSION = "1.0.1"
 DEFAULT_PARAMETERS: dict[str, float | int] = {
     "theta_prior_mean": 0.5,
     "theta_prior_std": 0.25,
@@ -32,17 +32,22 @@ DEFAULT_PARAMETERS: dict[str, float | int] = {
     "small_panel_unanimous_ci_exemption": 1,
     "credible_interval_z": 1.96,
     "wide_interval_threshold": 0.20,
-    "prior_only_wide_interval_threshold": 0.25,
     "peer_span_threshold": 0.15,
     "outlier_deviation_threshold": 0.30,
     "posterior_outlier_threshold": 0.95,
     "model_median_conflict_threshold": 0.15,
+    "short_duration_seconds": 120,
+    "short_duration_ratio": 0.25,
+    "short_comment_chars": 30,
     "low_entropy_min_items": 3,
     "low_entropy_threshold": 0.20,
     "hard_outlier_weight": 0.45,
     "posterior_weight": 0.35,
+    "short_duration_weight": 0.10,
+    "short_comment_weight": 0.05,
     "low_entropy_weight": 0.05,
     "medium_risk_threshold": 50,
+    "medium_behavior_signals": 2,
 }
 
 
@@ -87,11 +92,11 @@ def _unanimous_submissions(request: AggregateRequest, required: int) -> set[int]
     for observation in request.observations:
         observations_by_submission[observation.submission_id].append(observation)
     unanimous = set()
+    panel_reviewers = {o.reviewer_id for o in request.observations}
     for submission, observations in observations_by_submission.items():
-        if (
-            len(observations) != required
-            or len({o.reviewer_id for o in observations}) != required
-        ):
+        if len(observations) != required or len(panel_reviewers) != required:
+            continue
+        if {o.reviewer_id for o in observations} != panel_reviewers:
             continue
         signatures = []
         for observation in observations:
@@ -144,12 +149,10 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
     by_key: dict[tuple[int, int], list[tuple]] = defaultdict(list)
     by_reviewer: dict[int, list[tuple]] = defaultdict(list)
     by_task: dict[tuple[int, int, int | None], list[tuple]] = defaultdict(list)
-    by_submission = defaultdict(dict)
     for row in data:
         by_key[(row[1], row[2])].append(row)
         by_reviewer[row[0]].append(row)
         by_task[(row[0], row[1], row[3])].append(row)
-        by_submission[row[1]][row[2]] = by_key[(row[1], row[2])]
     submissions = sorted({row[1] for row in data})
     reviewers = sorted(by_reviewer)
     minimum_works = int(params["min_completed_works"])
@@ -157,30 +160,6 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
         r: len({row[1] for row in rows}) for r, rows in by_reviewer.items()
     }
     eligible = {r for r in reviewers if completed_works[r] >= minimum_works}
-    # Components are local calibration scopes. Center only learned profiles;
-    # prior-only reviewers remain exactly at bias zero throughout inference.
-    graph = defaultdict(set)
-    for r, s, *_ in data:
-        graph[("r", r)].add(("s", s))
-        graph[("s", s)].add(("r", r))
-    components = []
-    component_by_reviewer = {}
-    unseen = set(graph)
-    while unseen:
-        start = min(unseen)
-        unseen.remove(start)
-        stack, members = [start], set()
-        while stack:
-            node = stack.pop()
-            if node[0] == "r":
-                members.add(node[1])
-            for neighbor in graph[node]:
-                if neighbor in unseen:
-                    unseen.remove(neighbor)
-                    stack.append(neighbor)
-        for r in members:
-            component_by_reviewer[r] = len(components)
-        components.append(members)
     fallback = "PANEL_TOO_SMALL" if len(submissions) < minimum_works else None
     theta = {key: median(row[4] for row in rows) for key, rows in by_key.items()}
     bias = {r: 0.0 for r in reviewers}
@@ -230,17 +209,11 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
                     w * (row[4] - theta[(row[1], row[2])])
                     for row, w in zip(rows, weights)
                 ) / (bias_precision + sum(weights))
-            for members in components:
-                learned_members = members & eligible
-                if learned_members:
-                    center = sum(bias[r] for r in learned_members) / len(
-                        learned_members
-                    )
-                    for r in learned_members:
-                        bias[r] -= center
+            center = sum(bias[r] for r in eligible) / len(eligible) if eligible else 0.0
             for r, rows in by_reviewer.items():
                 if r not in eligible:
                     continue
+                bias[r] -= center
                 normal = [1 - posterior[row] for row in rows]
                 sigma[r] = max(
                     sigma_min,
@@ -285,17 +258,6 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
                 break
         if not converged:
             fallback = "MODEL_NOT_CONVERGED"
-        else:
-            # Report posteriors at the accepted parameters, not the previous E-step.
-            posterior = {
-                row: _posterior(
-                    row[4],
-                    _clip(theta[(row[1], row[2])] + bias[row[0]]),
-                    sigma[row[0]],
-                    prior[row[0]],
-                )
-                for row in data
-            }
     if fallback == "MODEL_NOT_CONVERGED":
         theta = {key: median(row[4] for row in rows) for key, rows in by_key.items()}
         bias = {r: 0.0 for r in reviewers}
@@ -315,24 +277,15 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
         else set()
     )
     interval_by_key = {}
-    interval_threshold_by_key = {}
     for key, rows in by_key.items():
         weights = sum(
             (1 - posterior[row]) / max(sigma[row[0]] ** 2, sigma_min**2) for row in rows
         )
         radius = float(params["credible_interval_z"]) * sqrt(1 / (precision + weights))
         interval_by_key[key] = (_clip(theta[key] - radius), _clip(theta[key] + radius))
-        # Five prior-noise (sigma=.12) reviews imply a ~21% interval even with
-        # perfectly ordinary scores. The old 20% cutoff would automatically
-        # escalate every work in a direction where reviewers have only two
-        # tasks (e.g. 100:40). Keep the actual interval; use a separately audited
-        # 25% cutoff only for converged, entirely prior-profile observations.
-        prior_only = fallback is None and all(row[0] not in eligible for row in rows)
-        interval_threshold_by_key[key] = max(
-            float(params["wide_interval_threshold"]),
-            float(params["prior_only_wide_interval_threshold"]) if prior_only else 0,
-        )
 
+    durations = [row[6] for row in data if row[6] > 0]
+    panel_duration = median(durations) if durations else 0
     anomalies: list[AnomalyFinding] = []
     high_submissions: set[int] = set()
     for (_, _, task_id), rows in by_task.items():
@@ -367,7 +320,7 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
             lo, hi = interval_by_key[(submission, row[2])]
             if (
                 submission not in exempt
-                and hi - lo >= interval_threshold_by_key[(submission, row[2])]
+                and hi - lo >= params["wide_interval_threshold"]
                 and "WIDE_CREDIBLE_INTERVAL" not in rules
             ):
                 rules.append("WIDE_CREDIBLE_INTERVAL")
@@ -386,11 +339,15 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
                     ),
                     "ci_lower": _score(lo * row[5]),
                     "ci_upper": _score(hi * row[5]),
-                    "ci_risk_threshold": interval_threshold_by_key[(submission, row[2])],
                 }
             )
         if hard:
             rules.insert(0, "FOUR_VS_ONE_OUTLIER")
+        short_duration = rows[0][6] < max(
+            params["short_duration_seconds"],
+            params["short_duration_ratio"] * panel_duration,
+        )
+        short_comment = rows[0][7] < params["short_comment_chars"]
         entropy = _entropy([x[4] for x in rows])
         low_entropy = (
             len(rows) >= params["low_entropy_min_items"]
@@ -400,6 +357,8 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
             1,
             params["hard_outlier_weight"] * hard
             + params["posterior_weight"] * max(posterior[x] for x in rows)
+            + params["short_duration_weight"] * short_duration
+            + params["short_comment_weight"] * short_comment
             + params["low_entropy_weight"] * low_entropy,
         )
         level = (
@@ -407,13 +366,22 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
             if rules
             else "MEDIUM"
             if risk >= params["medium_risk_threshold"]
+            or sum((short_duration, short_comment, low_entropy))
+            >= params["medium_behavior_signals"]
             else "LOW"
         )
         if level == "HIGH":
             high_submissions.add(submission)
         # LOW without any triggered signal is a normal observation, not an open case.
-        if low_entropy:
-            rules.append("LOW_SCORE_DIVERSITY")
+        rules.extend(
+            name
+            for enabled, name in (
+                (short_duration, "SHORT_DURATION"),
+                (short_comment, "SHORT_COMMENT"),
+                (low_entropy, "LOW_SCORE_DIVERSITY"),
+            )
+            if enabled
+        )
         anomalies.append(
             AnomalyFinding(
                 review_task_id=task_id,
@@ -448,8 +416,9 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
         medians = {}
         confidence = {}
         intervals = {}
-        sid = submission
-        for item, rows in by_submission[submission].items():
+        for (sid, item), rows in by_key.items():
+            if sid != submission:
+                continue
             maximum = rows[0][5]
             value = theta[(sid, item)]
             lo, hi = interval_by_key[(sid, item)]
@@ -478,9 +447,6 @@ def aggregate_panel_scores(request: AggregateRequest) -> AggregateResponse:
             sigma=round(sigma[r], 8),
             anomaly_prior=round(prior[r], 8),
             learned=r in eligible and converged and fallback is None,
-            completed_works=completed_works[r],
-            observation_count=len(by_reviewer[r]),
-            graph_component=component_by_reviewer[r],
         )
         for r in reviewers
     ]

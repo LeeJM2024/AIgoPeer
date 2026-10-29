@@ -5,36 +5,44 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 
-class AllocationWorkInput(BaseModel):
-    submission_id: int = Field(gt=0)
-    author_id: int = Field(gt=0)
-    class_id: int = Field(gt=0)
+class PanelInput(BaseModel):
+    panel_id: int
+    target_class_id: int
+    reviewer_class_id: int
+    reviewer_ids: list[int] = Field(min_length=5, max_length=5)
+
+    @model_validator(mode="after")
+    def validate_cross_class_panel(self) -> PanelInput:
+        if self.target_class_id == self.reviewer_class_id:
+            raise ValueError("target_class_id and reviewer_class_id must differ")
+        if len(set(self.reviewer_ids)) != 5:
+            raise ValueError("a panel requires exactly five distinct reviewers")
+        return self
 
 
 class InitializeRequest(BaseModel):
     assignment_id: int
-    seed: int = 20261022
-    works: list[AllocationWorkInput] = Field(min_length=1, max_length=2000)
+    panel: PanelInput
+    valid_submission_ids: list[int]
 
 
 class ReviewTaskPlan(BaseModel):
+    panel_id: int
     reviewer_id: int
     submission_id: int
 
 
 class InitializeResponse(BaseModel):
     assignment_id: int
+    panel_id: int
     expected_task_count: int
-    input_hash: str
-    seed: int
-    diagnostics: dict[str, Any]
     tasks: list[ReviewTaskPlan]
 
 
 class ScoreItem(BaseModel):
     rubric_item_id: int
-    score: float = Field(ge=0, allow_inf_nan=False)
-    max_score: float = Field(gt=0, allow_inf_nan=False)
+    score: float = Field(ge=0)
+    max_score: float = Field(gt=0)
 
     @model_validator(mode="after")
     def validate_score_range(self) -> ScoreItem:
@@ -69,9 +77,6 @@ class ReviewerProfile(BaseModel):
     bias: float
     sigma: float
     anomaly_prior: float
-    completed_works: int = 0
-    observation_count: int = 0
-    graph_component: int = 0
     learned: bool = Field(
         description="True only when at least three distinct works qualify the reviewer and this run's EM converged and accepted the profile."
     )

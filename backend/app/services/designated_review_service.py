@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict
 
 from algorithm.algorithms.aggregation import (
     ALGORITHM_NAME,
@@ -17,8 +16,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.schemas.review import AggregateRequest, ReviewerObservation, ScoreItem
-from app.services.assignment_lifecycle import submission_intake_open
-from app.services.relationship_service import apply_relationship_evidence, relationship_history
 from app.services.teacher_workflow import lock_assignment
 
 
@@ -30,9 +27,6 @@ def _run_parameters() -> dict:
         "profile_learning_policy": "distinct_works_and_converged",
         "fallback_interval_policy": "uncalibrated_model_around_median",
         "nonconvergence_policy": "fail_persistence",
-        "observation_policy": "sparse_active_five_distinct_per_work",
-        "bias_centering": "learned_profiles_per_connected_component",
-        "relationship_policy": "signed_residual_v1_window20",
     }
 
 
@@ -86,8 +80,6 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
     worker retry.
     """
     assignment = lock_assignment(db, assignment_id)
-    if submission_intake_open(assignment):
-        raise HTTPException(409, "SUBMISSIONS_STILL_OPEN")
     if assignment["type"] != "FINAL_PROJECT" or assignment["status"] not in {
         "REVIEWER_GRADING",
         "AGGREGATING",
@@ -116,8 +108,8 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
         return {"status": "NO_VALID_SUBMISSIONS", "panel_id": panel_id}
     counts = (
         db.execute(
-            text("""SELECT submission_id,count(DISTINCT reviewer_id) AS total,count(DISTINCT reviewer_id) FILTER (WHERE status='SUBMITTED') AS submitted
-        FROM review_tasks WHERE panel_id=:panel AND is_active GROUP BY submission_id"""),
+            text("""SELECT submission_id,count(*) AS total,count(*) FILTER (WHERE status='SUBMITTED') AS submitted
+        FROM review_tasks WHERE panel_id=:panel GROUP BY submission_id"""),
             {"panel": panel_id},
         )
         .mappings()
@@ -152,7 +144,7 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
         GREATEST(0,COALESCE(EXTRACT(EPOCH FROM rt.submitted_at-rt.started_at),0)::int) duration_seconds,
         COALESCE(rc.char_count,0) comment_length,rs.rubric_item_id,rs.score,ri.max_score
         FROM review_tasks rt JOIN review_scores rs ON rs.review_task_id=rt.id JOIN rubric_items ri ON ri.id=rs.rubric_item_id
-        LEFT JOIN review_comments rc ON rc.review_task_id=rt.id WHERE rt.panel_id=:panel AND rt.is_active AND rt.status='SUBMITTED'
+        LEFT JOIN review_comments rc ON rc.review_task_id=rt.id WHERE rt.panel_id=:panel AND rt.status='SUBMITTED'
         AND rt.submission_id=ANY(:valid)
         ORDER BY rt.submission_id,rt.reviewer_id,rs.rubric_item_id"""),
             {"panel": panel_id, "valid": valid},
@@ -197,26 +189,11 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
     request = AggregateRequest(
         assignment_id=assignment_id, panel_id=panel_id, observations=observations
     )
-    history = relationship_history(db, assignment_id)
-    snapshot = {"scores": _canonical_hash(observations), "history": [asdict(r) for r in history]}
-    revisions = db.execute(text("""SELECT rev.review_task_id,max(rev.version) AS version
-        FROM review_revisions rev JOIN review_tasks rt ON rt.id=rev.review_task_id
-        WHERE rt.panel_id=:panel AND rt.is_active AND rt.status='SUBMITTED' AND rt.submission_id=ANY(:valid)
-        GROUP BY rev.review_task_id ORDER BY rev.review_task_id"""),
-        {"panel": panel_id, "valid": valid}).mappings().all()
-    if revisions:
-        # Same-length comment corrections still create a fresh evidence snapshot.
-        snapshot["review_revisions"] = [dict(row) for row in revisions]
-    input_hash = hashlib.sha256(
-        json.dumps(
-            snapshot,
-            sort_keys=True,
-        ).encode()
-    ).hexdigest()
+    input_hash = _canonical_hash(observations)
     existing = db.execute(
         text("""SELECT id FROM algorithm_runs WHERE assignment_id=:assignment AND panel_id=:panel
         AND algorithm_name=:algorithm AND version=:version AND input_hash=:hash AND status='COMPLETED'
-        AND parameters_json-'low_evidence_policy'-'relationship_history_snapshot'=CAST(:parameters AS jsonb)-'low_evidence_policy'
+        AND parameters_json-'low_evidence_policy'=CAST(:parameters AS jsonb)-'low_evidence_policy'
         ORDER BY id DESC LIMIT 1"""),
         {
             "assignment": assignment_id,
@@ -263,21 +240,11 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
     ).scalar_one():
         raise HTTPException(409, "FINAL_REVIEW_PREVENTS_REAGGREGATION")
     run_id = _create_run(db, assignment_id, panel_id, input_hash, "RUNNING")
-    db.execute(
-        text(
-            "UPDATE algorithm_runs SET parameters_json=parameters_json || CAST(:snapshot AS jsonb) WHERE id=:id"
-        ),
-        {
-            "id": run_id,
-            "snapshot": json.dumps({"relationship_history_snapshot": [asdict(r) for r in history]}),
-        },
-    )
     savepoint = db.begin_nested()
     try:
         result = aggregate_panel_scores(request)
         if result.fallback_reason == "MODEL_NOT_CONVERGED":
             raise ValueError("MODEL_NOT_CONVERGED")
-        apply_relationship_evidence(db, assignment_id, run_id, result, history)
         uncertainty = {
             finding.submission_id: finding.evidence["uncertainty_evidence"]
             for finding in result.anomalies
@@ -291,7 +258,7 @@ def aggregate_panel_and_persist(db: Session, assignment_id: int, panel_id: int) 
                     "assignment": assignment_id,
                     "panel": panel_id,
                     "reviewer": profile.reviewer_id,
-                    "bias": json.dumps(profile.model_dump(exclude={"reviewer_id"})),
+                    "bias": json.dumps({"bias": profile.bias, "sigma": profile.sigma}),
                     "reliability": round(1 / (profile.sigma**2), 5),
                     "lazy": profile.anomaly_prior,
                 },
@@ -416,9 +383,7 @@ def _advance_if_complete(db: Session, assignment_id: int) -> None:
               AND p.target_class_id=s.class_id AND ar.panel_id=p.id
               AND ar.assignment_id=s.assignment_id AND ar.status='COMPLETED'
               AND ar.algorithm_name=:algorithm
-              AND ag.created_at >= (SELECT max(GREATEST(rt.submitted_at,
-                  (SELECT max(rev.created_at) FROM review_revisions rev WHERE rev.review_task_id=rt.id)))
-                FROM review_tasks rt WHERE rt.submission_id=s.id AND rt.is_active)
+              AND ag.created_at >= (SELECT max(submitted_at) FROM review_tasks WHERE submission_id=s.id)
         )"""),
         {"id": assignment_id, "algorithm": ALGORITHM_NAME},
     ).scalar_one()

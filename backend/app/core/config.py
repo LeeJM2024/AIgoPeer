@@ -1,6 +1,5 @@
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlsplit
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -57,22 +56,7 @@ class Settings(BaseSettings):
                 )
             if "change-me-before-demo" in self.database_url:
                 raise ValueError("production cannot use the example database password")
-            if not self.cors_origin_list or any(
-                not origin.startswith("https://") or "*" in origin or origin.endswith("/")
-                for origin in self.cors_origin_list
-            ):
-                raise ValueError("production CORS_ORIGINS must contain explicit HTTPS origins")
-            if self.jwt_algorithm != "HS256":
-                raise ValueError("JWT_ALGORITHM must be HS256")
         return self
-
-    @property
-    def trusted_host_list(self) -> list[str]:
-        hosts = {urlsplit(origin).hostname for origin in self.cors_origin_list}
-        hosts.update({"localhost", "127.0.0.1", "::1"})
-        if self.app_env != "production":
-            hosts.add("testserver")
-        return sorted(host for host in hosts if host)
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -3,21 +3,12 @@ import { errorMessages } from './errors'
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 export async function apiFetch(path, options = {}) {
-  // Do not allow an API caller to send a bearer token to an arbitrary URL.
-  if (!path.startsWith('/api/') || /[\\\r\n]/.test(path) ||
-      /(?:^|\/)\.\.(?:\/|$)/.test(decodeURIComponent(path.split('?')[0])))
-    throw new Error('无效的接口地址。')
   const token = localStorage.getItem('algopeer_token')
   const headers = new Headers(options.headers)
   if (token) headers.set('Authorization', `Bearer ${token}`)
   if (options.body && !(options.body instanceof FormData))
     headers.set('Content-Type', 'application/json')
-  if (token && !['GET', 'HEAD', 'OPTIONS'].includes((options.method || 'GET').toUpperCase())) {
-    const bytes = crypto.getRandomValues(new Uint8Array(16))
-    headers.set('X-Request-Nonce', Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join(''))
-    headers.set('X-Request-Timestamp', String(Math.floor(Date.now() / 1000)))
-  }
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: 'omit', redirect: 'error' })
+  const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
   if (response.ok && options.responseType === 'blob') return response.blob()
   const body = await response.json().catch(() => null)
   if (

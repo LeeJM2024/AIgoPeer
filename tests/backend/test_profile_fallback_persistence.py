@@ -22,7 +22,9 @@ def aggregate_all(c):
 
 
 def test_unanimous_small_panels_persist_prior_and_publish_normal_blend(course):
-    c = reviewed_course(course, score=85)
+    c = reviewed_course(course)
+    with c["engine"].begin() as conn:
+        conn.execute(text("UPDATE review_scores SET score=85"))
     panels = aggregate_all(c)
     with c["engine"].connect() as conn:
         runs = (
@@ -35,8 +37,8 @@ def test_unanimous_small_panels_persist_prior_and_publish_normal_blend(course):
         )
         assert len(runs) == 2
         for run in runs:
-            assert run["version"] == ALGORITHM_VERSION == "2.1.0"
-            assert run["parameters_json"] == {**service._run_parameters(), "relationship_history_snapshot": []}
+            assert run["version"] == ALGORITHM_VERSION == "1.0.1"
+            assert run["parameters_json"] == service._run_parameters()
             assert all(
                 run["parameters_json"][key] == value
                 for key, value in DEFAULT_PARAMETERS.items()
@@ -45,8 +47,7 @@ def test_unanimous_small_panels_persist_prior_and_publish_normal_blend(course):
             conn.execute(text("SELECT * FROM reviewer_profiles")).mappings().all()
         )
         assert len(profiles) == 10
-        assert all(p["bias_json"]["bias"] == 0.0 and p["bias_json"]["sigma"] == 0.12 for p in profiles)
-        assert all(not p["bias_json"]["learned"] and p["bias_json"]["completed_works"] == 1 for p in profiles)
+        assert all(p["bias_json"] == {"bias": 0.0, "sigma": 0.12} for p in profiles)
         assert all(
             float(p["lazy_probability"]) == pytest.approx(1 / 21, abs=1e-4)
             for p in profiles
