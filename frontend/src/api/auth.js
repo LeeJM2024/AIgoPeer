@@ -1,9 +1,17 @@
 import { apiFetch } from './client'
 
-export function register(studentNo, name, password) {
-  return apiFetch('/api/auth/register', {
-    method: 'POST', body: JSON.stringify({ student_no: studentNo, name, password }),
+export async function changePassword(currentPassword, newPassword, confirmPassword) {
+  const previous = localStorage.getItem('algopeer_token')
+  const result = await apiFetch('/api/auth/change-password', {
+    method: 'POST', body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    }),
   })
+  if (previous && localStorage.getItem('algopeer_token') === previous)
+    localStorage.setItem('algopeer_token', result.access_token)
+  return result
 }
 
 export async function login(account, password) {
@@ -20,7 +28,15 @@ export function currentUser() {
   catch { return null }
 }
 
-export function logout() {
-  localStorage.removeItem('algopeer_token')
-  localStorage.removeItem('algopeer_user')
+export async function logout() {
+  // Start the revocation request while the current token is still available.
+  const previous = localStorage.getItem('algopeer_token')
+  const pending = previous
+    ? apiFetch('/api/auth/logout', { method: 'POST' })
+    : Promise.resolve()
+  await pending
+  if (localStorage.getItem('algopeer_token') === previous) {
+    localStorage.removeItem('algopeer_token')
+    localStorage.removeItem('algopeer_user')
+  }
 }

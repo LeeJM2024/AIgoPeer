@@ -1,31 +1,32 @@
-from typing import Annotated
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from app.core.input_security import normalize_account
 
 
 class LoginInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     account: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=1, max_length=256)
 
+    _account = field_validator("account", mode="before")(normalize_account)
 
-class RegisterInput(BaseModel):
+
+class ChangePasswordInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    student_no: Annotated[
-        str,
-        StringConstraints(
-            strip_whitespace=True,
-            min_length=1,
-            max_length=32,
-            pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$",
-        ),
-    ]
-    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
-    password: str = Field(min_length=10, max_length=128)
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=10, max_length=128)
+    confirm_password: str = Field(min_length=10, max_length=128)
 
-    @field_validator("password")
+    @field_validator("new_password", "confirm_password")
     @classmethod
     def nonblank_password(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("password must not be blank")
         return value
+
+    @model_validator(mode="after")
+    def passwords_match(self):
+        if self.new_password != self.confirm_password:
+            raise ValueError("new passwords must match")
+        return self

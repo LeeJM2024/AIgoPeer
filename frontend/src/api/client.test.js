@@ -6,6 +6,29 @@ const unauthorized = () => new Response(JSON.stringify({ code: 'UNAUTHORIZED' })
 beforeEach(() => localStorage.clear())
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
+it('写请求生成不同的安全随机编号与时间戳，不跟随重定向', async () => {
+  localStorage.setItem('algopeer_token', 'token')
+  const send = vi.fn(async () => new Response('{"data":{}}'))
+  vi.stubGlobal('fetch', send)
+  await apiFetch('/api/teacher/classes', { method: 'POST', body: '{}' })
+  await apiFetch('/api/teacher/classes', { method: 'POST', body: '{}' })
+  const first = send.mock.calls[0][1]
+  const second = send.mock.calls[1][1]
+  expect(first.headers.get('X-Request-Nonce')).toMatch(/^[a-f0-9]{32}$/)
+  expect(first.headers.get('X-Request-Nonce')).not.toBe(second.headers.get('X-Request-Nonce'))
+  expect(Number(first.headers.get('X-Request-Timestamp'))).toBeGreaterThan(Date.now() / 1000 - 5)
+  expect(first.redirect).toBe('error')
+  expect(first.credentials).toBe('omit')
+})
+
+it('拒绝向外站或有路径穿越的地址发送令牌', async () => {
+  const send = vi.fn()
+  vi.stubGlobal('fetch', send)
+  for (const path of ['https://evil.invalid/api', '//evil.invalid/api', '/api/../secret', '/api/\\evil'])
+    await expect(apiFetch(path)).rejects.toThrow('无效的接口地址')
+  expect(send).not.toHaveBeenCalled()
+})
+
 it('旧请求的 401 不清除新登录的会话', async () => {
   localStorage.setItem('algopeer_token', 'old-token')
   let finish

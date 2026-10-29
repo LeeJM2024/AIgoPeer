@@ -14,6 +14,11 @@ beforeEach(() => {
 })
 afterEach(() => wrapper.unmount())
 
+it('学生账号由教师添加，登录页不提供注册入口', () => {
+  expect(wrapper.find('a[href="/register"]').exists()).toBe(false)
+  expect(wrapper.text()).toContain('学生账号由任课教师统一添加')
+})
+
 it('密码可显示和隐藏，不提交表单也不改变内容', async () => {
   await wrapper.get('input[autocomplete="current-password"]').setValue('LocalTestPassword!')
   await wrapper.get('[aria-label="显示密码"]').trigger('click')

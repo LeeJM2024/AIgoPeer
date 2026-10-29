@@ -25,3 +25,16 @@ class ReviewSubmissionInput(BaseModel):
         if not value.strip():
             raise ValueError("comment must not be blank")
         return value.strip()
+
+
+class ReviewRevisionInput(ReviewSubmissionInput):
+    expected_version: int = Field(ge=1)
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def reason_must_be_meaningful(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 3:
+            raise ValueError("revision reason must contain at least three characters")
+        return value

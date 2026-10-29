@@ -8,6 +8,7 @@ import {
   getAssignment,
   getReviewProgress,
   resolveAnomaly,
+  replaceReviewTask,
 } from '../../api/teacher'
 
 const id = Number(useRoute().params.id),
@@ -20,6 +21,19 @@ const error = ref(''),
   notes = reactive({}),
   deadline = ref(''),
   reason = ref('')
+const replacement = ref(null), replacementReason = ref('')
+async function replace() {
+  if (!replacement.value || busy.value) return
+  busy.value = true
+  error.value = ''; notice.value = ''
+  try {
+    await replaceReviewTask(id, replacement.value.task_id, replacementReason.value)
+    replacement.value = null; replacementReason.value = ''
+    await load()
+    notice.value = '替补任务已生成，原任务已停用并留档。'
+  } catch (err) { error.value = err.message }
+  finally { busy.value = false }
+}
 const statusNames = {
   OPEN: '待复核',
   CONFIRMED: '确认异常',
@@ -40,15 +54,11 @@ onMounted(async () => {
   }
 })
 async function resolve(item, status) {
-  if ((notes[item.id] || '').trim().length < 2) {
-    error.value = '请填写至少两个字的复核说明。'
-    return
-  }
   busy.value = true
   error.value = ''
   notice.value = ''
   try {
-    await resolveAnomaly(item.id, { status, note: notes[item.id] })
+    await resolveAnomaly(item.id, { status, note: notes[item.id] || '' })
     await load()
     notice.value = '复核结论已记录，原始分数保持不变。'
   } catch (err) {
@@ -104,7 +114,8 @@ async function extend() {
     <div v-if="!assignment && !error" class="skeleton-page" />
     <template v-if="assignment">
       <section class="data-section">
-        <h2>五人评审完成情况</h2>
+        <h2>跨班评审完成情况</h2>
+        <p>每份作品收齐 5 份有效评分后才能正式汇总。替补仅针对尚未提交的任务。</p>
         <div class="table-wrap">
           <table>
             <thead>
@@ -132,6 +143,9 @@ async function extend() {
                       <li v-for="task in row.missing_tasks" :key="task.task_id">
                         {{ task.anonymous_token }} ·
                         {{ task.status === 'PENDING' ? '未开始' : '未提交' }}
+                        <button v-if="assignment.status === 'REVIEWER_GRADING' && new Date(assignment.review_deadline) > new Date()"
+                          class="button button-secondary button-small" :disabled="busy"
+                          @click="replacement = task; replacementReason = ''">安排替补</button>
                       </li>
                     </ul>
                   </details>
@@ -144,9 +158,16 @@ async function extend() {
           </table>
         </div>
         <p v-if="!progress.length" class="empty-state compact">
-          尚未配置评审组。
+          尚未生成跨班评审任务。
         </p>
       </section>
+      <form v-if="replacement" class="data-section" aria-labelledby="replacement-heading" @submit.prevent="replace">
+        <h2 id="replacement-heading">确认替补 · {{ replacement.anonymous_token }}</h2>
+        <p>系统会从对方班的参与学生中选择符合关系约束、当前负担较低的人选。确认后原任务停止接受评分。</p>
+        <label>替补原因<textarea v-model="replacementReason" required minlength="3" maxlength="1000" :disabled="busy" /></label>
+        <div class="form-actions"><button class="button" :disabled="busy || replacementReason.trim().length < 3">{{ busy ? '正在安排…' : '确认并安排替补' }}</button>
+          <button type="button" class="button button-secondary" :disabled="busy" @click="replacement = null">取消</button></div>
+      </form>
       <form
         v-if="
           ['PUBLISHED', 'SUBMITTING', 'REVIEWER_GRADING'].includes(
@@ -217,7 +238,7 @@ async function extend() {
               assignment.status !== 'PUBLISHED_RESULT'
             "
             ><label
-              >复核说明<textarea
+              >复核说明（选填）<textarea
                 v-model="notes[item.id]"
                 rows="2"
                 maxlength="2000"
@@ -246,7 +267,7 @@ async function extend() {
             高风险异常须在评分工作台录入复核最终分，不能在此确认或驳回。
           </p>
           <p v-else class="review-conclusion">
-            {{ item.resolution_note || '成绩已发布'
+            {{ item.resolution_note || '未填写复核说明'
             }}<small v-if="item.resolved_at">
               · {{ new Date(item.resolved_at).toLocaleString() }}</small
             >

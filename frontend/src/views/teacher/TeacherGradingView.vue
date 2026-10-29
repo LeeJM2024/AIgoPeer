@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import {
   createTeacherGrade,
@@ -32,12 +32,35 @@ const form = reactive({
   history = ref([]),
   readiness = ref(null)
 let selectionVersion = 0
+const gradingEditor = ref(null), finalReviewForm = ref(null)
 const selected = computed(() =>
   data.value?.submissions.find((s) => s.id === selectedId.value),
 )
 const published = computed(
   () => data.value?.assignment.status === 'PUBLISHED_RESULT',
 )
+const scorePreviewNote = computed(() => {
+  const state = selected.value?.score_preview_state
+  const messages = {
+    PUBLISHED: '已发布，成绩已冻结',
+    MATERIAL_NOT_VALID: '等待材料检查通过',
+    FINAL_REVIEW_REQUIRED: '待教师最终复核',
+    TEACHER_GRADE_REQUIRED: '等待教师评分',
+    REVIEWS_INCOMPLETE: '等待五位评委全部提交',
+    AGGREGATE_NOT_READY: '等待生成评审综合分',
+    AGGREGATE_STALE: '评审已修改，需重新聚合',
+    FINAL_REVIEW_LOCKED: '采用教师复核最终分 · 未发布',
+  }
+  if (messages[state]) return messages[state]
+  if (state === 'WEIGHTED' || state === 'TEACHER_GRADE_UNLOCKED') {
+    const assignment = data.value.assignment
+    const teacher = Math.round(Number(assignment.teacher_weight) * 10000) / 100
+    const review = Math.round(Number(assignment.designated_review_weight) * 10000) / 100
+    const status = state === 'TEACHER_GRADE_UNLOCKED' ? '教师分待锁定' : '未发布'
+    return `教师 ${teacher}% + 评审 ${review}% · ${status}`
+  }
+  return '等待评分数据'
+})
 const isInitialTeacher = computed(
   () =>
     history.value.find((g) => g.version === 1)?.entered_by ===
@@ -81,6 +104,30 @@ async function select(item) {
   } catch (err) {
     if (selectionVersion === version) error.value = err.message
   }
+}
+function blockerMessage(blocker) {
+  const author = blocker.author_name
+    ? `${blocker.author_name}（${blocker.student_no}）：`
+    : ''
+  return author + (errorMessages[blocker.code] || '请核对作业状态，刷新后重试。')
+}
+function blockerSubmission(blocker) {
+  return data.value?.submissions.find((item) => item.id === blocker.submission_id)
+}
+async function openBlocker(blocker) {
+  const item = blockerSubmission(blocker)
+  if (!item || busy.value) return
+  await select(item)
+  await nextTick()
+  if (selectedId.value !== item.id) return
+  const target = blocker.code === 'TEACHER_FINAL_REVIEW_REQUIRED' && finalReviewForm.value
+    ? finalReviewForm.value
+    : gradingEditor.value
+  target?.scrollIntoView?.({ behavior: 'auto', block: 'start' })
+  const focusTarget = target === finalReviewForm.value
+    ? target.querySelector('input')
+    : target
+  focusTarget?.focus({ preventScroll: true })
 }
 async function load() {
   const [workspace, checks] = await Promise.all([
@@ -157,8 +204,8 @@ async function save() {
   )
 }
 async function saveFinalReview() {
-  if (form.finalScore === '' || !form.finalReason.trim()) {
-    error.value = '请填写复核最终分与复核理由。'
+  if (form.finalScore === '') {
+    error.value = '请填写复核最终分。'
     return
   }
   if (
@@ -220,7 +267,9 @@ function publishAll() {
     <p v-if="notice" class="notice notice-success" role="status">
       {{ notice }}
     </p>
-    <div v-if="!data && !error" class="skeleton-page" />
+    <div v-if="!data && !error" class="skeleton-page workspace-loading" role="status" aria-busy="true">
+      正在加载学生提交与评分数据…
+    </div>
     <template v-if="data">
       <section v-if="published" class="notice notice-success">
         成绩已发布，评分和更正入口已关闭。<RouterLink
@@ -232,11 +281,18 @@ function publishAll() {
         <summary>发布前还有 {{ readiness.blockers.length }} 项需要处理</summary>
         <ul class="blocker-list">
           <li v-for="(blocker, index) in readiness.blockers" :key="index">
-            {{
-              blocker.author_name
-                ? `${blocker.author_name}（${blocker.student_no}）：`
-                : ''
-            }}{{ errorMessages[blocker.code] || '请核对作业状态，刷新后重试。' }}
+            <button
+              v-if="blockerSubmission(blocker)"
+              type="button"
+              class="blocker-action"
+              :disabled="busy"
+              @click="openBlocker(blocker)"
+            >{{ blockerMessage(blocker) }}<span aria-hidden="true"> →</span></button>
+            <RouterLink
+              v-else-if="blocker.code === 'OPEN_ANOMALIES_REQUIRE_REVIEW'"
+              :to="`/teacher/assignments/${id}/reviews`"
+            >{{ blockerMessage(blocker) }}<span aria-hidden="true"> →</span></RouterLink>
+            <template v-else>{{ blockerMessage(blocker) }}</template>
           </li>
         </ul>
         <p class="muted">
@@ -273,10 +329,10 @@ function publishAll() {
             暂无学生提交
           </p>
         </aside>
-        <section v-if="selected" class="grading-editor">
+        <section v-if="selected" ref="gradingEditor" class="grading-editor" tabindex="-1" aria-labelledby="selected-work-heading">
           <div class="student-summary">
             <div>
-              <h2>{{ selected.author_name }}</h2>
+              <h2 id="selected-work-heading">{{ selected.author_name }}</h2>
               <p>{{ selected.student_no }} · {{ selected.anonymous_token }}</p>
             </div>
             <div class="score-comparison">
@@ -289,6 +345,11 @@ function publishAll() {
                   selected.teacher_score ?? '—'
                 }}</strong></span
               >
+              <span class="score-preview" aria-live="polite">
+                {{ published ? '最终总分' : '预计总分' }}
+                <strong>{{ selected.score_preview == null ? '—' : Number(selected.score_preview).toFixed(2) }}</strong>
+                <small>{{ scorePreviewNote }}</small>
+              </span>
             </div>
           </div>
           <p
@@ -348,16 +409,14 @@ function publishAll() {
                 >
               </div>
               <label
-                >教师反馈<textarea
+                >教师反馈（选填）<textarea
                   v-model="form.comment"
                   rows="4"
                   maxlength="5000"
                 /></label
               ><label v-if="correctionMode" class="spaced-label"
-                >更正原因<input
+                >更正原因（选填）<input
                   v-model="form.reason"
-                  required
-                  minlength="3"
                   maxlength="1000"
               /></label>
             </fieldset>
@@ -411,10 +470,12 @@ function publishAll() {
               data.assignment.status === 'TEACHER_GRADING' &&
               !published
             "
-            class="data-section"
+            ref="finalReviewForm"
+            class="data-section final-review-form"
+            aria-labelledby="final-review-heading"
             @submit.prevent="saveFinalReview"
           >
-            <h3>高风险作品复核最终分</h3>
+            <h3 id="final-review-heading">高风险作品复核最终分</h3>
             <p>确认后，这个分数将作为最终成绩。</p>
             <p
               v-if="!selected.locked_at || !isInitialTeacher"
@@ -434,12 +495,10 @@ function publishAll() {
                 required
             /></label>
             <label
-              >复核理由<textarea
+              >复核理由（选填）<textarea
                 v-model="form.finalReason"
                 rows="3"
-                minlength="3"
                 maxlength="2000"
-                required
               />
             </label>
             <button
@@ -487,6 +546,12 @@ function publishAll() {
 </template>
 
 <style scoped>
+.blocker-action { display: inline; padding: 4px 0; border: 0; border-radius: 4px; background: transparent; color: var(--primary); text-align: left; line-height: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.blocker-action:hover { text-decoration-thickness: 2px; }
+.grading-editor, .final-review-form { scroll-margin-top: 24px; }
+.workspace-loading { display: grid; place-items: center; padding: 24px; color: var(--muted); }
+.score-comparison .score-preview { border: 1px solid var(--border); max-width: 100%; }
+.score-preview small { font-size: 12px; line-height: 1.5; }
 .grading-content { display: grid; grid-template-columns: minmax(0,1fr); gap: 26px; align-items: start; }
 .scoring-column { min-width: 0; padding: 22px; border-radius: 24px; background: var(--surface); }
 .grading-content :deep(.evidence-section) { margin-top: 0; border-top: 0; padding-top: 0; }
