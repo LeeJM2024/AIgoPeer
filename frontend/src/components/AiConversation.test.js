@@ -61,3 +61,11 @@ it('AI 回答中的 HTML 作为文字呈现，代码块可复制', async () => {
   await w.get('button').trigger('click'); await flushPromises(); expect(writeText).toHaveBeenCalledWith('int x = 0;')
   expect(w.text()).toContain('已复制')
 })
+it('正确渲染 Markdown 表格、行内公式和公式块', async () => {
+  const w = mount(AiAnswer, { props: { content: '| 操作 | 复杂度 |\n| --- | --- |\n| 双层循环 | $\\Theta(n^2)$ |\n\n$$\nT(n)=2T(n/2)+n=\\Theta(n\\log n)\n$$' } }); wrappers.push(w)
+  expect(w.find('table').exists()).toBe(true)
+  expect(w.findAll('tbody tr')).toHaveLength(1)
+  expect(w.find('.katex').exists()).toBe(true)
+  expect(w.find('.ai-math-block .katex-display').exists()).toBe(true)
+  expect(w.text()).not.toContain('$\\Theta')
+})
