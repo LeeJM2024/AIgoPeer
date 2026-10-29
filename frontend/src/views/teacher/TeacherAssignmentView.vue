@@ -1,21 +1,31 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import ProgrammingHistory from '../../components/teacher/ProgrammingHistory.vue'
+import SubjectiveAnswers from '../../components/teacher/SubjectiveAnswers.vue'
+import { subjectiveTypes } from '../../presentation/assignments'
 import {
   getAssignment,
   getClassStudents,
   initializeReviewTasks,
   publishAssignment,
-  savePanels,
+  getAllocationPreview,
   getAlgorithmRuns,
   aggregateReviews,
   getProgrammingResults,
+  closeAssignment,
+  reopenAssignment,
+  deleteAssignment,
+  finishSubmissions,
 } from '../../api/teacher'
 
 const route = useRoute()
+const router = useRouter()
 const assignment = ref(null)
+const isSubjective = computed(() => subjectiveTypes.includes(assignment.value?.type))
 const students = ref({})
-const selections = ref({})
+const allocation = ref(null)
+const confirmedSnapshot = ref('')
 const error = ref('')
 const notice = ref('')
 const busy = ref('')
@@ -42,20 +52,13 @@ const stateName = {
   TEACHER_GRADING: '教师评分中',
   PUBLISHED_RESULT: '成绩已发布',
 }
-const canEditPanels = computed(() => assignment.value?.status === 'DRAFT')
+const intakeOpen = computed(() => assignment.value && !assignment.value.closed_at && !assignment.value.submissions_closed_at && ['PUBLISHED', 'SUBMITTING', 'REVIEWER_GRADING'].includes(assignment.value.status) && new Date(assignment.value.submit_deadline) > new Date())
+const canInitialize = computed(() => !assignment.value?.closed_at && allocation.value?.ready && (allocation.value.new_task_count ?? 1) > 0 && confirmedSnapshot.value === allocation.value.snapshot_hash && new Date(assignment.value.review_deadline) > new Date())
 async function load() {
   error.value = ''
   try {
     assignment.value = await getAssignment(id)
-    selections.value = Object.fromEntries(
-      assignment.value.classes.map((c) => {
-        const panel = assignment.value.panels.find(
-          (p) => p.reviewer_class_id === c.id,
-        )
-        return [c.id, panel?.reviewer_ids || []]
-      }),
-    )
-    runs.value = await getAlgorithmRuns(id)
+    runs.value = assignment.value.type === 'FINAL_PROJECT' ? await getAlgorithmRuns(id) : []
     if (assignment.value.type === 'PROGRAMMING')
       programmingResults.value = await getProgrammingResults(id)
     const entries = await Promise.all(
@@ -65,19 +68,38 @@ async function load() {
       ]),
     )
     students.value = Object.fromEntries(entries)
+    if (assignment.value.type === 'FINAL_PROJECT' && !assignment.value.closed_at) await refreshPreview()
   } catch (err) {
     error.value = err.message
   }
 }
 onMounted(load)
-function panelForReviewerClass(reviewerClass) {
-  return {
-    target_class_id: assignment.value.classes.find(
-      (c) => c.id !== reviewerClass.id,
-    ).id,
-    reviewer_class_id: reviewerClass.id,
-    reviewer_ids: selections.value[reviewerClass.id] || [],
-  }
+async function refreshPreview() {
+  confirmedSnapshot.value = ''
+  allocation.value = null
+  try {
+    allocation.value = await getAllocationPreview(id)
+  } catch (err) { error.value = err.message }
+}
+async function initialize() {
+  if (!canInitialize.value || busy.value) return
+  const hash = allocation.value.snapshot_hash
+  await run(() => initializeReviewTasks(id, hash), 'initialize')
+}
+async function toggleClosed() {
+  if (!confirm(assignment.value.closed_at ? '恢复此作业？按原有阶段与截止时间继续。' : '关闭此作业？学生提交和评审将暂停，可稍后恢复。')) return
+  await run(() => assignment.value.closed_at ? reopenAssignment(id) : closeAssignment(id), assignment.value.closed_at ? 'reopen' : 'close')
+}
+async function removeAssignment() {
+  if (!confirm(`删除作业“${assignment.value.title}”？删除后将从教师与学生入口移除，现有链接不可继续访问。`)) return
+  busy.value = 'delete'; error.value = ''
+  try { await deleteAssignment(id); await router.push('/teacher/assignments') }
+  catch (err) { error.value = err.message }
+  finally { busy.value = '' }
+}
+async function finishIntake() {
+  if (!confirm(isSubjective.value ? '结束提交？将停止接收新答案和新版本，已提交答案仍可查看。' : '结束提交？将停止接收新作品和新版本，已有评审任务继续进行。')) return
+  await run(() => finishSubmissions(id), 'finish')
 }
 async function run(action, label) {
   error.value = ''
@@ -85,10 +107,9 @@ async function run(action, label) {
   busy.value = label
   try {
     const result = await action()
-    notice.value =
-      label === 'panels'
-        ? '两组评审人已保存。'
-        : label === 'publish'
+    notice.value = ({ close: '作业已关闭，可恢复后继续。', reopen: '作业已恢复。', finish: isSubjective.value ? '已结束提交，可查看学生答案与历史版本。' : '已结束提交。请补充分配新增作品，再汇总评审。' })[label] ||
+    (
+      label === 'publish'
           ? '作业已发布。'
           : label === 'aggregate'
             ? result.panels.every((p) => p.status === 'NO_VALID_SUBMISSIONS')
@@ -98,9 +119,10 @@ async function run(action, label) {
               )
               ? '评审结果汇总完成。请进入评分工作台。'
               : '部分评审结果尚未汇总，请先补齐评分，再重新汇总。'
-            : `评审任务已生成，共 ${result.panels.reduce((n, p) => n + p.task_count, 0)} 条。`
+            : `评审任务已生成，共 ${result.panels.reduce((n, p) => n + p.task_count, 0)} 条。`)
     await load()
   } catch (err) {
+    if (label === 'initialize') { confirmedSnapshot.value = ''; allocation.value = null }
     error.value = err.message
   } finally {
     busy.value = ''
@@ -117,7 +139,7 @@ async function run(action, label) {
     <header class="page-heading">
       <div>
         <span class="status-chip">{{
-          stateName[assignment.status] || '状态待更新'
+          assignment.closed_at ? '已关闭' : stateName[assignment.status] || '状态待更新'
         }}</span>
         <h1>{{ assignment.title }}</h1>
         <p v-if="assignment.type === 'FINAL_PROJECT'">
@@ -125,6 +147,7 @@ async function run(action, label) {
           {{ Number(assignment.teacher_weight) * 100 }}% / 跨班评审
           {{ Number(assignment.designated_review_weight) * 100 }}%
         </p>
+        <p v-else-if="isSubjective">{{ assignment.classes.map((c) => c.name).join(' · ') }} · 在线作答，提交即完成</p>
         <p v-else>
           {{ assignment.classes.map((c) => c.name).join(' · ') }} · C++17
           自动测评
@@ -163,34 +186,40 @@ async function run(action, label) {
     <p v-if="notice" class="notice notice-success" role="status">
       {{ notice }}
     </p>
-    <section class="action-bar">
+    <div class="toolbar" aria-label="作业管理操作">
+      <button class="button button-secondary" :disabled="Boolean(busy)" @click="toggleClosed">{{ assignment.closed_at ? '恢复作业' : '关闭作业' }}</button>
+      <button v-if="intakeOpen" class="button button-secondary" :disabled="Boolean(busy)" @click="finishIntake">结束提交</button>
+      <button class="button button-secondary" :disabled="Boolean(busy)" @click="removeAssignment">删除作业</button>
+    </div>
+    <p v-if="assignment.closed_at" class="notice" role="status">作业已关闭，学生提交和评审已暂停。恢复后按原阶段及截止时间继续。</p>
+    <section v-if="!assignment.closed_at" class="action-bar">
       <div>
         <h2>下一步</h2>
-        <p v-if="assignment.status === 'DRAFT'">
+        <p v-if="isSubjective">{{ assignment.status === 'DRAFT' ? '确认题目、班级与提交截止时间后发布。' : intakeOpen ? '学生在线提交答案即可完成本题，可在下方查看提交情况与答案历史。' : '已停止接收答案，可在下方查看提交与历史版本。' }}</p>
+        <p v-else-if="assignment.status === 'DRAFT'">
           {{
             assignment.type === 'PROGRAMMING'
               ? '确认题目和测试用例后发布。'
-              : '确认评分标准和两个评审组后发布。'
+              : '确认评分标准与两个班级后发布，教师可随时确认当前名单并开始评审。'
           }}发布后不可修改评分规则。
         </p>
         <p v-else-if="assignment.status === 'PUBLISHED'">
           {{
             assignment.type === 'PROGRAMMING'
               ? '学生可以提交代码，测评结果将在下方显示。'
-              : '提交截止后可根据当前有效作业生成评审任务。'
+              : '可按当前有效提交生成评审任务，同时继续接收未分配作品。'
           }}
         </p>
+        <p v-else-if="assignment.status === 'REVIEWER_GRADING' && intakeOpen">提交与评审同时进行。新作品提交后可补充分配；准备汇总时，先点击“结束提交”。</p>
         <p v-else>
-          {{ assignment.type === 'PROGRAMMING' ? '在下方查看学生提交与测评结果。' : ({ SUBMITTING: '提交截止后，可分配跨班评审任务。', REVIEWER_INITIALIZING: '正在分配评审任务，请稍后刷新。', REVIEWER_GRADING: '评审完成后，汇总结果并进入评分工作台。', AGGREGATING: '正在汇总评审结果，请稍后刷新。', TEACHER_GRADING: '完成教师评分与复核后，可发布成绩。', PUBLISHED_RESULT: '成绩已发布，可查看统计并导出。' }[assignment.status] || '请刷新查看作业进度。') }}
+          {{ assignment.type === 'PROGRAMMING' ? '在下方查看学生提交与测评结果。' : ({ SUBMITTING: '可随时按当前有效提交分配跨班评审任务。', REVIEWER_INITIALIZING: '正在分配评审任务，请稍后刷新。', REVIEWER_GRADING: '补齐新增作品的评审任务与评分，再汇总结果。', AGGREGATING: '正在汇总评审结果，请稍后刷新。', TEACHER_GRADING: '完成教师评分与复核后，可发布成绩。', PUBLISHED_RESULT: '成绩已发布，可查看统计并导出。' }[assignment.status] || '请刷新查看作业进度。') }}
         </p>
       </div>
       <button
         v-if="assignment.status === 'DRAFT'"
         class="button"
         :disabled="
-          Boolean(busy) ||
-          (assignment.type === 'FINAL_PROJECT' &&
-            assignment.panels.length !== 2)
+          Boolean(busy)
         "
         @click="run(() => publishAssignment(id), 'publish')"
       >
@@ -198,15 +227,15 @@ async function run(action, label) {
       ><button
         v-else-if="
           assignment.type === 'FINAL_PROJECT' &&
-          ['PUBLISHED', 'SUBMITTING', 'REVIEWER_INITIALIZING'].includes(
+          ['PUBLISHED', 'SUBMITTING', 'REVIEWER_INITIALIZING', 'REVIEWER_GRADING'].includes(
             assignment.status,
           )
         "
         class="button"
-        :disabled="Boolean(busy)"
-        @click="run(() => initializeReviewTasks(id), 'initialize')"
+        :disabled="Boolean(busy) || !canInitialize"
+        @click="initialize"
       >
-        分配跨班评审任务
+        {{ busy === 'initialize' ? '正在求解并分配…' : '确认并生成跨班任务' }}
       </button>
       <button
         v-if="
@@ -216,11 +245,16 @@ async function run(action, label) {
           )
         "
         class="button"
-        :disabled="Boolean(busy)"
+        :disabled="Boolean(busy) || intakeOpen"
         @click="run(() => aggregateReviews(id), 'aggregate')"
       >
         {{ busy === 'aggregate' ? '正在汇总…' : '汇总评审结果' }}
       </button>
+    </section>
+    <section v-if="assignment.statement || assignment.topics?.length" class="data-section">
+      <h2>题目与知识点</h2><p class="preserve-lines">{{ assignment.statement }}</p>
+      <p v-if="assignment.topics?.length">{{ assignment.topics.map(t => `${t.code} · ${t.name}`).join('、') }}</p>
+      <RouterLink to="/teacher/learning-analysis">查看学习过程分析</RouterLink>
     </section>
     <section
       v-if="assignment.type === 'PROGRAMMING' && assignment.programming_problem"
@@ -316,6 +350,8 @@ async function run(action, label) {
         尚无代码提交。发布后学生可从“我的作业”进入提交。
       </p>
     </section>
+    <SubjectiveAnswers v-if="isSubjective" :assignment-id="id" />
+    <ProgrammingHistory v-if="assignment.type === 'PROGRAMMING'" :assignment-id="id" :students="Object.values(students).flat()" />
     <section v-if="assignment.type === 'FINAL_PROJECT'" class="data-section">
       <div class="section-heading">
         <div>
@@ -342,68 +378,37 @@ async function run(action, label) {
         </li>
       </ol>
     </section>
-    <section v-if="assignment.type === 'FINAL_PROJECT'" class="data-section">
+    <section v-if="assignment.type === 'FINAL_PROJECT'" class="data-section" aria-labelledby="allocation-heading">
       <div class="section-heading">
-        <div>
-          <h2>固定跨班五人评审组</h2>
-          <p>每组五人将评阅对方班全部材料合格的作业。</p>
+        <div><h2 id="allocation-heading">跨班随机评审分配</h2>
+          <p>全体有效提交者参与，每份作品由对方班 5 名不同学生评阅，禁止直接互评。初次分配均衡；补充分配保留已有任务，按累计负担均衡安排新增任务。</p></div>
+        <button class="button button-secondary" :disabled="Boolean(busy)" @click="refreshPreview">刷新名单与配额</button>
+      </div>
+      <template v-if="allocation">
+        <p>共 {{ allocation.total_tasks }} 条任务 · 随机种子 {{ allocation.seed }}</p>
+        <p v-if="allocation.new_task_count !== undefined">已有 {{ allocation.existing_task_count }} 条任务，本次待新增 {{ allocation.new_task_count }} 条。</p>
+        <div class="panel-grid">
+          <section v-for="direction in allocation.directions" :key="direction.reviewer_class_id" class="allocation-direction">
+            <h3>{{ direction.reviewer_class_name }} → {{ direction.target_class_name }}</h3>
+            <p><strong>{{ direction.reviewer_count }}</strong> 人评阅 {{ direction.submission_count }} 份作品</p>
+            <p>共 {{ direction.task_count }} 条任务 · {{ allocation.existing_task_count ? '平均负担参考：' : '' }}每人 {{ direction.min_load }}～{{ direction.max_load }} 份</p>
+            <details><summary>核对 {{ direction.reviewer_count }} 名参与学生</summary>
+              <ul class="participant-list"><li v-for="person in direction.participants" :key="person.id">{{ person.name }} · {{ person.student_no }}</li></ul>
+            </details>
+          </section>
         </div>
-      </div>
-      <div class="panel-grid">
-        <fieldset
-          v-for="classItem in assignment.classes"
-          :key="classItem.id"
-          :disabled="!canEditPanels || Boolean(busy)"
-        >
-          <legend>{{ classItem.name }}评审组</legend>
-          <p>
-            评阅：{{
-              assignment.classes.find((c) => c.id !== classItem.id).name
-            }}
-          </p>
-          <label
-            v-for="student in students[classItem.id]"
-            :key="student.id"
-            class="check-row"
-            ><input
-              v-model="selections[classItem.id]"
-              type="checkbox"
-              :value="student.id"
-              :disabled="
-                canEditPanels &&
-                selections[classItem.id]?.length >= 5 &&
-                !selections[classItem.id]?.includes(student.id)
-              "
-            /><span
-              >{{ student.name }} <small>{{ student.student_no }}</small></span
-            ></label
-          >
-          <div
-            class="selection-count"
-            :class="{ complete: selections[classItem.id]?.length === 5 }"
-          >
-            已选择 {{ selections[classItem.id]?.length || 0 }} / 5 人
-          </div>
-        </fieldset>
-      </div>
-      <div v-if="canEditPanels" class="form-actions">
-        <button
-          class="button"
-          :disabled="
-            Boolean(busy) ||
-            assignment.classes.some((c) => selections[c.id]?.length !== 5)
-          "
-          @click="
-            run(
-              () =>
-                savePanels(id, assignment.classes.map(panelForReviewerClass)),
-              'panels',
-            )
-          "
-        >
-          保存评审组
-        </button>
-      </div>
+        <p v-if="allocation.blockers.includes('ALLOCATION_INFEASIBLE')" class="notice notice-error" role="alert">当前人数无法同时满足每份五评和禁止直接互评。请先核对两班有效提交人数。</p>
+        <p v-if="allocation.blockers.includes('MATERIAL_CHECKS_PENDING')" class="notice" role="status">仍有材料正在检查，名单尚未固定。</p>
+        <p v-if="allocation.blockers.includes('REVIEWER_CLASS_CONFLICT')" class="notice notice-error" role="alert">存在班级归属冲突，请检查参与名单。</p>
+        <p v-if="allocation.blockers.includes('ANONYMOUS_MATERIAL_NOT_READY')" class="notice" role="status">匿名材料尚未全部就绪。</p>
+        <template v-if="!assignment.closed_at && ['PUBLISHED', 'SUBMITTING', 'REVIEWER_INITIALIZING', 'REVIEWER_GRADING'].includes(assignment.status)">
+          <p class="muted">生成任务不结束提交。已分配的作品锁定当前版本，后续新作品可再次补充分配；已有任务和评分保持不变。</p>
+          <label class="check-row"><input v-model="confirmedSnapshot" type="checkbox" :true-value="allocation.snapshot_hash" false-value="" :disabled="!allocation.ready || Boolean(busy)" />
+            <span>我已核对当前参与名单及评阅负担，确认按此快照生成新增任务并继续接收提交。</span></label>
+        </template>
+        <p v-else-if="['REVIEWER_GRADING', 'AGGREGATING', 'TEACHER_GRADING', 'PUBLISHED_RESULT'].includes(assignment.status)" class="muted">任务已生成。初始配额保存在处理记录中，替补后的实际工作量请查看评审进度。</p>
+      </template>
+      <p v-else class="muted">请刷新获取当前名单与工作量预览。</p>
     </section>
     <details
       v-if="assignment.type === 'FINAL_PROJECT' && runs.length"
@@ -468,6 +473,8 @@ pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+ .allocation-direction { padding: 16px 0; }
+.participant-list { max-height: 16rem; overflow: auto; }
 details {
   padding: 12px 0;
 }

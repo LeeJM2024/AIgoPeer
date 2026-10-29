@@ -68,7 +68,7 @@ def read_my_published_grade(
         text("""SELECT rc.content FROM review_comments rc JOIN review_tasks rt ON rt.id=rc.review_task_id
             JOIN submissions s ON s.id=rt.submission_id
             WHERE s.assignment_id=:assignment_id AND s.author_id=:student_id AND s.is_current
-              AND rt.status='SUBMITTED' ORDER BY rc.id"""),
+              AND rt.is_active AND rt.status='SUBMITTED' ORDER BY rc.id"""),
         {"assignment_id": assignment_id, "student_id": current_user.id},
     ).scalars().all()
     return ApiResponse(data={

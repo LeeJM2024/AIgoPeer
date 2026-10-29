@@ -28,7 +28,9 @@ def pg_engine():
     with admin.begin() as connection:
         connection.execute(text(f"CREATE SCHEMA {schema}"))
     engine = create_engine(
-        url, connect_args={"options": f"-csearch_path={schema},public"}
+        # Never fall back to public: its alembic_version could skip test migrations
+        # and then route unqualified test writes into the application tables.
+        url, connect_args={"options": f"-csearch_path={schema}"}
     )
     try:
         config = Config()
@@ -90,7 +92,7 @@ def course(teacher_api, pg_engine):
         classes.append(class_id)
         with pg_engine.begin() as c:
             users = []
-            for student in range(5):
+            for student in range(10):
                 user = c.execute(
                     text("""INSERT INTO users(student_no,name,password_hash,system_role)
                     VALUES (:n,'虚构学生','unused','STUDENT') RETURNING id"""),
@@ -115,25 +117,11 @@ def course(teacher_api, pg_engine):
     result = client.post("/api/teacher/assignments", json=payload)
     assert result.status_code == 201, result.text
     assignment_id = result.json()["data"]["assignment_id"]
-    panels = [
-        {
-            "target_class_id": classes[i],
-            "reviewer_class_id": classes[1 - i],
-            "reviewer_ids": reviewers[1 - i],
-        }
-        for i in range(2)
-    ]
-    result = client.put(
-        f"/api/teacher/assignments/{assignment_id}/review-panels",
-        json={"panels": panels},
-    )
-    assert result.status_code == 200, result.text
     return {
         "id": assignment_id,
         "classes": classes,
         "reviewers": reviewers,
         "payload": payload,
-        "panels": panels,
         "teacher": teacher,
         "client": client,
         "engine": pg_engine,
@@ -141,7 +129,7 @@ def course(teacher_api, pg_engine):
 
 
 @pytest.fixture
-def grading_course(course):
+def grading_course(course, request):
     from sqlalchemy import text
 
     c = course
@@ -170,14 +158,36 @@ def grading_course(course):
                 {"s": sid},
             )
             submissions.append(sid)
-    response = client.post(
-        f"/api/teacher/assignments/{c['id']}/initialize-review-tasks"
-    )
-    assert response.status_code == 200, response.text
+    seed_review_tasks(c)
+    if getattr(request, "param", None) == "pending":
+        with c["engine"].connect() as conn:
+            rubric = conn.execute(
+                text("SELECT id FROM rubric_items ORDER BY id LIMIT 1")
+            ).scalar_one()
+        c.update(submissions=submissions, rubric=rubric)
+        return c
     with c["engine"].begin() as conn:
         # Explicit contract fixture for member 3's persistence output, not an implementation of its algorithm.
+        rubric = conn.execute(
+            text("SELECT id FROM rubric_items ORDER BY id LIMIT 1")
+        ).scalar_one()
+        for task in conn.execute(text("SELECT id FROM review_tasks")).scalars().all():
+            conn.execute(
+                text(
+                    "INSERT INTO review_scores(review_task_id,rubric_item_id,score) VALUES(:t,:r,80)"
+                ),
+                {"t": task, "r": rubric},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO review_comments(review_task_id,content,char_count) VALUES(:t,'评分记录完备，推理清晰，边界讨论完整。',60)"
+                ),
+                {"t": task},
+            )
         conn.execute(
-            text("UPDATE review_tasks SET status='SUBMITTED',submitted_at=now()")
+            text(
+                "UPDATE review_tasks SET status='SUBMITTED',started_at=now()-interval '5 minutes',submitted_at=clock_timestamp()"
+            )
         )
         conn.execute(
             text("UPDATE assignments SET status='TEACHER_GRADING' WHERE id=:id"),
@@ -200,8 +210,87 @@ def grading_course(course):
             ).scalar_one()
             conn.execute(
                 text("""INSERT INTO designated_review_aggregates(submission_id,panel_id,algorithm_run_id,
-                total_score,rubric_scores_json) VALUES (:s,:p,:r,80,'{}')"""),
+                total_score,rubric_scores_json,created_at) VALUES (:s,:p,:r,80,'{}',clock_timestamp())"""),
                 {"s": sid, "p": panel, "r": run},
             )
     c.update(submissions=submissions, rubric=rubric)
     return c
+
+
+def seed_review_tasks(course, assignment_id=None):
+    """Partial snapshots for isolated grading/API contracts, not an allocator.
+
+    Full roster allocation and publication are exercised separately by
+    test_cross_class_pipeline. These small fixtures choose non-author reviewers
+    so unrelated teacher/security tests remain focused and nonreciprocal.
+    """
+    from app.services.random_review_service import ensure_random_panels
+    from sqlalchemy import text
+
+    aid = assignment_id or course["id"]
+    with course["engine"].begin() as db:
+        db.execute(
+            text("UPDATE assignments SET status='REVIEWER_INITIALIZING' WHERE id=:a"),
+            {"a": aid},
+        )
+        ensure_random_panels(db, aid)
+        rows = (
+            db.execute(
+                text(
+                    "SELECT id,author_id,class_id,anonymous_token FROM submissions WHERE assignment_id=:a AND is_current AND status='VALID' ORDER BY id"
+                ),
+                {"a": aid},
+            )
+            .mappings()
+            .all()
+        )
+        authors = {r["author_id"] for r in rows}
+        for work in rows:
+            panel = (
+                db.execute(
+                    text(
+                        "SELECT id,reviewer_class_id FROM review_panels WHERE assignment_id=:a AND target_class_id=:c"
+                    ),
+                    {"a": aid, "c": work["class_id"]},
+                )
+                .mappings()
+                .one()
+            )
+            candidates = (
+                db.execute(
+                    text(
+                        "SELECT user_id FROM enrollments WHERE class_id=:c ORDER BY user_id"
+                    ),
+                    {"c": panel["reviewer_class_id"]},
+                )
+                .scalars()
+                .all()
+            )
+            selected = [u for u in candidates if u not in authors][:5]
+            assert len(selected) == 5
+            for reviewer in selected:
+                db.execute(
+                    text(
+                        "INSERT INTO panel_reviewers(panel_id,reviewer_id) VALUES(:p,:u) ON CONFLICT DO NOTHING"
+                    ),
+                    {"p": panel["id"], "u": reviewer},
+                )
+                db.execute(
+                    text(
+                        "INSERT INTO review_tasks(panel_id,submission_id,reviewer_id,anonymous_token) VALUES(:p,:s,:u,:t) ON CONFLICT DO NOTHING"
+                    ),
+                    {
+                        "p": panel["id"],
+                        "s": work["id"],
+                        "u": reviewer,
+                        "t": work["anonymous_token"],
+                    },
+                )
+        db.execute(
+            text("UPDATE review_panels SET status='ACTIVE' WHERE assignment_id=:a"),
+            {"a": aid},
+        )
+        db.execute(
+            text("UPDATE assignments SET status='REVIEWER_GRADING' WHERE id=:a"),
+            {"a": aid},
+        )

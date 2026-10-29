@@ -6,40 +6,54 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import CurrentUser, get_current_user, hash_password, verify_password
+from app.core.security import (
+    CurrentUser,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
 from app.db.session import get_db
-from app.schemas.auth import LoginInput, RegisterInput
+from app.schemas.auth import ChangePasswordInput, LoginInput
 from app.schemas.common import ApiResponse
-from app.services.login_throttle import admit_login, admit_registration
+from app.services.login_throttle import admit_login, admit_password_change
 
 router = APIRouter()
 _DUMMY_HASH = hash_password("dummy-account-timing-only")
 
 
-@router.post("/register", response_model=ApiResponse, status_code=201)
-def register(
-    payload: RegisterInput, request: Request, db: Session = Depends(get_db)
+@router.post("/change-password", response_model=ApiResponse)
+def change_password(
+    payload: ChangePasswordInput,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> ApiResponse:
-    admit_registration(db, payload.student_no, request.client.host if request.client else "unknown")
+    admit_password_change(db, str(current_user.id))
     user = (
         db.execute(
-            text("""INSERT INTO users(student_no, name, password_hash, system_role)
-                    VALUES (:student_no, :name, :password_hash, 'STUDENT')
-                    ON CONFLICT (student_no) DO NOTHING RETURNING id, name"""),
-            {
-                "student_no": payload.student_no,
-                "name": payload.name,
-                "password_hash": hash_password(payload.password),
-            },
+            text("SELECT password_hash FROM users WHERE id=:id FOR UPDATE"),
+            {"id": current_user.id},
         )
         .mappings()
         .one_or_none()
     )
     if user is None:
-        db.rollback()
-        raise HTTPException(409, "ACCOUNT_ALREADY_EXISTS")
+        raise HTTPException(401, "UNAUTHENTICATED")
+    if not verify_password(payload.current_password, user["password_hash"]):
+        raise HTTPException(400, "CURRENT_PASSWORD_INCORRECT")
+    if payload.new_password == payload.current_password:
+        raise HTTPException(400, "NEW_PASSWORD_UNCHANGED")
+    db.execute(
+        text("UPDATE users SET password_hash=:password, updated_at=now() WHERE id=:id"),
+        {"password": hash_password(payload.new_password), "id": current_user.id},
+    )
+    # Record the action without storing passwords or password hashes in the audit trail.
+    db.execute(
+        text("""INSERT INTO audit_logs(actor_id,action,entity_type,entity_id)
+            VALUES (:id,'CHANGE_PASSWORD','user',:id)"""),
+        {"id": current_user.id},
+    )
     db.commit()
-    return ApiResponse(data={"user": {"id": user["id"], "name": user["name"], "role": "STUDENT"}})
+    return ApiResponse(data={"changed": True})
 
 
 @router.post("/login", response_model=ApiResponse)

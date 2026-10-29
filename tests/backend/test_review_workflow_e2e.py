@@ -128,7 +128,7 @@ def _submit_panel_reviews(
                 for item in listed.json()["data"]
                 if item["assignment_id"] == assignment_id and item["status"] == "PENDING"
             ]
-            assert len(tasks) == 3
+            assert len(tasks) == 5
             for task in tasks:
                 assert set(task).isdisjoint(
                     {"author_id", "author_name", "student_no", "aggregate_score", "teacher_score"}
@@ -155,7 +155,7 @@ def _submit_panel_reviews(
 
 
 def test_cross_class_anonymous_review_workflow_e2e(course, monkeypatch, tmp_path):
-    """Two submissions travel through upload, five reviews, aggregation and publication."""
+    """Twenty submissions travel through upload, five reviews, aggregation and publication."""
     from app.core.config import settings
     from app.services.student import (
         material_check_service,
@@ -170,7 +170,7 @@ def test_cross_class_anonymous_review_workflow_e2e(course, monkeypatch, tmp_path
     )
     monkeypatch.setattr(review_anonymization_service, "_safe_video_file", shutil.copyfile)
 
-    submit_deadline = datetime.now(UTC) + timedelta(seconds=10)
+    submit_deadline = datetime.now(UTC) + timedelta(seconds=35)
     with c["engine"].begin() as connection:
         connection.execute(
             text("UPDATE assignments SET submit_deadline=:deadline WHERE id=:a"),
@@ -178,8 +178,8 @@ def test_cross_class_anonymous_review_workflow_e2e(course, monkeypatch, tmp_path
         )
     published_assignment = client.post(f"/api/teacher/assignments/{c['id']}/publish")
     assert published_assignment.status_code == 200, published_assignment.text
-    topics = [(_create_topic(client, code), code) for code in ("91", "92", "93", "94", "95", "96")]
-    authors_by_class = [c["reviewers"][0][:3], c["reviewers"][1][:3]]
+    topics = [(_create_topic(client, code), code) for code in (str(n) for n in range(91, 111))]
+    authors_by_class = [c["reviewers"][0], c["reviewers"][1]]
     submissions_by_class: list[list[int]] = [[], []]
     topic_index = 0
     for class_index, authors in enumerate(authors_by_class):
@@ -203,7 +203,7 @@ def test_cross_class_anonymous_review_workflow_e2e(course, monkeypatch, tmp_path
     initialized = client.post(f"/api/teacher/assignments/{c['id']}/initialize-review-tasks")
     assert initialized.status_code == 200, initialized.text
     assert initialized.json()["data"]["status"] == "REVIEWER_GRADING"
-    assert [panel["task_count"] for panel in initialized.json()["data"]["panels"]] == [15, 15]
+    assert [panel["task_count"] for panel in initialized.json()["data"]["panels"]] == [50, 50]
 
     high_risk_submission = submissions_by_class[1][0]
     reviewer_positions = {
@@ -212,6 +212,7 @@ def test_cross_class_anonymous_review_workflow_e2e(course, monkeypatch, tmp_path
         for position, reviewer_id in enumerate(reviewer_group)
     }
     normal_bases = {
+        **{sid: 80 for sid in submissions},
         submissions_by_class[0][0]: 72,
         submissions_by_class[0][1]: 80,
         submissions_by_class[0][2]: 88,
@@ -222,15 +223,16 @@ def test_cross_class_anonymous_review_workflow_e2e(course, monkeypatch, tmp_path
         task_rows = connection.execute(
             text("SELECT id,submission_id,reviewer_id FROM review_tasks ORDER BY id")
         ).mappings().all()
+    outlier_task = next(t["id"] for t in task_rows if t["submission_id"] == high_risk_submission)
     score_by_task_id = {}
     normal_offsets = [-1, 0, 1, 0, 0]
     for task in task_rows:
         position = reviewer_positions[task["reviewer_id"]]
         if task["submission_id"] == high_risk_submission:
-            score_by_task_id[task["id"]] = 10 if position == 0 else 80
+            score_by_task_id[task["id"]] = 10 if task["id"] == outlier_task else 80
         else:
-            score_by_task_id[task["id"]] = normal_bases[task["submission_id"]] + normal_offsets[position]
-    assert len(score_by_task_id) == 30
+            score_by_task_id[task["id"]] = normal_bases[task["submission_id"]] + normal_offsets[position % 5]
+    assert len(score_by_task_id) == 100
     _submit_panel_reviews(client, c["id"], c["reviewers"][1], score_by_task_id)
     _submit_panel_reviews(client, c["id"], c["reviewers"][0], score_by_task_id)
 
@@ -295,7 +297,7 @@ def test_cross_class_anonymous_review_workflow_e2e(course, monkeypatch, tmp_path
     assert final_review.status_code == 201, final_review.text
     published = client.post(f"/api/teacher/assignments/{c['id']}/publish-results")
     assert published.status_code == 200, published.text
-    assert published.json()["data"]["published_count"] == 6
+    assert published.json()["data"]["published_count"] == 20
 
     author_scores = {
         author: expected_score_by_submission[submission_id]

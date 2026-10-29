@@ -1,8 +1,12 @@
 import { apiFetch } from './client'
 
-export function register(studentNo, name, password) {
-  return apiFetch('/api/auth/register', {
-    method: 'POST', body: JSON.stringify({ student_no: studentNo, name, password }),
+export function changePassword(currentPassword, newPassword, confirmPassword) {
+  return apiFetch('/api/auth/change-password', {
+    method: 'POST', body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    }),
   })
 }
 

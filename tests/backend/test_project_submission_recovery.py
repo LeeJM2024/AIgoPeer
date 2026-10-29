@@ -80,7 +80,7 @@ def test_current_project_is_own_safe_and_restorable_after_reupload(project_cours
         assert rows == [(1, False, "SUPERSEDED"), (2, True, "VALID")]
 
 
-@pytest.mark.parametrize("closed_by", ["deadline", "review_phase"])
+@pytest.mark.parametrize("closed_by", ["deadline", "teacher_finished"])
 @pytest.mark.parametrize("project_course", [4], indirect=True)
 def test_closed_project_is_readable_but_upload_rejected(project_course, closed_by):
     c = project_course
@@ -91,8 +91,7 @@ def test_closed_project_is_readable_but_upload_rejected(project_course, closed_b
     if closed_by == "deadline":
         time.sleep(max(0, (c["deadline"] - datetime.now(UTC)).total_seconds()) + .03)
     else:
-        with c["engine"].begin() as db:
-            db.execute(text("UPDATE assignments SET status='REVIEWER_GRADING' WHERE id=:a"), {"a": c["id"]})
+        assert c["client"].post(f"/api/teacher/assignments/{c['id']}/finish-submissions").status_code == 200
     with as_student(c["own"]):
         current = view(c).json()["data"]
         assert current["can_submit"] is False and current["submission"]["id"] == sid
@@ -100,6 +99,31 @@ def test_closed_project_is_readable_but_upload_rejected(project_course, closed_b
         rejected = upload(c)
         assert rejected.status_code == 400 and rejected.json()["detail"] == "INVALID_STATE"
     assert len(list((c["storage"] / "project-submissions").glob("*.zip"))) == 1
+
+
+def test_unassigned_project_can_be_updated_during_review(project_course):
+    c = project_course
+    with c["engine"].begin() as db:
+        db.execute(text("UPDATE assignments SET status='REVIEWER_GRADING' WHERE id=:a"), {"a": c["id"]})
+    with as_student(c["own"]):
+        assert view(c).json()["data"]["can_submit"]
+        assert upload(c).status_code == 200
+        assert upload(c).status_code == 200
+        assert view(c).json()["data"]["submission"]["version"] == 2
+
+
+def test_assigned_project_version_is_locked_during_parallel_intake(project_course):
+    from conftest import seed_review_tasks
+    c = project_course
+    with as_student(c["own"]):
+        first = upload(c)
+        assert first.status_code == 200
+    seed_review_tasks(c)
+    with as_student(c["own"]):
+        assert not view(c).json()["data"]["can_submit"]
+        response = upload(c)
+        assert response.status_code == 409 and response.json()["code"] == "SUBMISSION_ALREADY_ASSIGNED"
+        assert view(c).json()["data"]["submission"]["id"] == first.json()["data"]["submission_id"]
 
 
 @pytest.mark.parametrize("project_course", [4], indirect=True)
