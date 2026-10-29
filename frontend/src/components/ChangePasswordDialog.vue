@@ -62,7 +62,7 @@ async function submit() {
       <div class="password-heading">
         <span class="password-symbol"><UiIcon :name="changed ? 'check' : 'shield'" /></span>
         <h2 id="password-dialog-title">{{ changed ? '密码已修改' : '修改密码' }}</h2>
-        <p id="password-dialog-description" class="muted">{{ changed ? '下次登录时，请使用新密码。' : '验证当前密码后，为你的课程账号设置新密码。' }}</p>
+        <p id="password-dialog-description" class="muted">{{ changed ? '密码已更新，其他设备已退出登录。' : '验证当前密码后，为你的课程账号设置新密码。' }}</p>
       </div>
       <button v-if="changed" class="button password-done" type="button" @click="close">完成</button>
       <form v-else class="password-form" @submit.prevent="submit">

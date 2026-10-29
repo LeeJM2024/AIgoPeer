@@ -6,6 +6,7 @@ COPY backend/app/ ./app/
 RUN apt-get update \
     && apt-get install --no-install-recommends -y ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --upgrade 'pip>=26.2,<27' \
     && pip install --no-cache-dir .
 COPY backend/ ./
 COPY algorithm/ /app/algorithm/

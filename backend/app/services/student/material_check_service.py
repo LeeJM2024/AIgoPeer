@@ -12,6 +12,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.archive_security import UnsafeArchive, inspect_office, inspect_zip, safe_archive_path
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.schemas.student_submission import ProjectManifest
@@ -47,6 +48,10 @@ class ArchiveInspectionError(Exception):
 
 
 def _normalise_zip_name(name: str) -> str:
+    try:
+        safe_archive_path(name)
+    except UnsafeArchive as exc:
+        raise ArchiveInspectionError(str(exc), "archive contains an unsafe path") from exc
     path = PurePosixPath(name)
     if not name or "\\" in name or path.is_absolute() or ".." in path.parts:
         raise ArchiveInspectionError("UNSAFE_ARCHIVE_PATH", "archive contains an unsafe path")
@@ -56,7 +61,7 @@ def _normalise_zip_name(name: str) -> str:
 def _inspect_archive(*, archive_path: Path, manifest: ProjectManifest) -> tuple[list[str], list[str], dict[str, Any]]:
     try:
         with zipfile.ZipFile(archive_path) as archive:
-            infos = archive.infolist()
+            infos = inspect_zip(archive)
             if len(infos) > MAX_ARCHIVE_ENTRIES:
                 raise ArchiveInspectionError("TOO_MANY_ARCHIVE_ENTRIES", "archive has too many entries")
 
@@ -79,6 +84,9 @@ def _inspect_archive(*, archive_path: Path, manifest: ProjectManifest) -> tuple[
                 ):
                     raise ArchiveInspectionError("SUSPICIOUS_COMPRESSION_RATIO", "archive compression ratio is too high")
                 files[name] = info
+    except UnsafeArchive as exc:
+        message = "archive contains an unsafe path" if str(exc) == "UNSAFE_ARCHIVE_PATH" else "archive rejected by security checks"
+        raise ArchiveInspectionError(str(exc), message) from exc
     except zipfile.BadZipFile as exc:
         raise ArchiveInspectionError("INVALID_ZIP", "archive is not a valid ZIP file") from exc
 
@@ -103,9 +111,12 @@ def _inspect_archive(*, archive_path: Path, manifest: ProjectManifest) -> tuple[
     ppt_slide_count: int | None = None
     if manifest.ppt_path in files:
         try:
+            if files[manifest.ppt_path].file_size > 64 * 1024 * 1024:
+                raise UnsafeArchive("OFFICE_FILE_TOO_LARGE")
             with zipfile.ZipFile(archive_path) as archive:
                 ppt_bytes = archive.read(manifest.ppt_path)
             with zipfile.ZipFile(io.BytesIO(ppt_bytes)) as presentation:
+                inspect_office(presentation)
                 ppt_slide_count = sum(
                     1
                     for name in presentation.namelist()
@@ -118,7 +129,9 @@ def _inspect_archive(*, archive_path: Path, manifest: ProjectManifest) -> tuple[
                 for example in manifest.examples
             ):
                 missing_items.append("EXAMPLES")
-        except (KeyError, zipfile.BadZipFile):
+        except UnsafeArchive as exc:
+            raise ArchiveInspectionError(str(exc), "unsafe Office document") from exc
+        except (KeyError, zipfile.BadZipFile, RuntimeError):
             missing_items.append("PPT")
 
     details = {
@@ -257,7 +270,7 @@ def run_material_check(submission_id: int) -> None:
             warnings=[],
             details={"error_code": exc.code, "message": exc.message},
         )
-    except Exception as exc:  # noqa: BLE001 - background failures must be persisted for the student.
+    except Exception:  # noqa: BLE001 - background failures must be persisted for the student.
         db.rollback()
         _record_result(
             db=db,
@@ -265,7 +278,7 @@ def run_material_check(submission_id: int) -> None:
             status_value="INVALID",
             missing_items=["MATERIAL_CHECK_FAILED"],
             warnings=[],
-            details={"error_code": "MATERIAL_CHECK_FAILED", "message": str(exc)},
+            details={"error_code": "MATERIAL_CHECK_FAILED", "message": "Material processing failed"},
         )
     finally:
         db.close()

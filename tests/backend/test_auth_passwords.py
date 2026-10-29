@@ -1,3 +1,6 @@
+import secrets
+import time
+
 import pytest
 from app.core.security import get_current_user, hash_password, verify_password
 from app.main import app
@@ -38,7 +41,7 @@ def test_public_registration_is_removed():
 
 
 @pytest.fixture
-def password_api(teacher_api, pg_engine):
+def password_api(teacher_api, pg_engine, monkeypatch):
     client, teacher = teacher_api
     with pg_engine.begin() as db:
         db.execute(
@@ -51,6 +54,17 @@ def password_api(teacher_api, pg_engine):
             {"p": hash_password(OLD)},
         ).scalar_one()
     del app.dependency_overrides[get_current_user]
+    original = client.request
+
+    def request(method, url, **kwargs):
+        headers = dict(kwargs.get("headers") or {})
+        if "Authorization" in headers and method.upper() not in {"GET", "HEAD", "OPTIONS"}:
+            headers.setdefault("X-Request-Nonce", secrets.token_hex(16))
+            headers.setdefault("X-Request-Timestamp", str(int(time.time())))
+        kwargs["headers"] = headers
+        return original(method, url, **kwargs)
+
+    monkeypatch.setattr(client, "request", request)
     return client, teacher, student
 
 
@@ -71,7 +85,7 @@ def test_each_role_changes_only_own_password(password_api, pg_engine, account):
         headers=headers,
         json={"current_password": OLD, "new_password": NEW, "confirm_password": NEW},
     )
-    assert response.status_code == 200 and response.json()["data"] == {"changed": True}
+    assert response.status_code == 200 and response.json()["data"]["changed"] is True
     assert OLD not in response.text and NEW not in response.text
     own = teacher if account == "TEST-TEACHER" else student
     other = student if own == teacher else teacher

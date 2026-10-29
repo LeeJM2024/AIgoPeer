@@ -82,7 +82,10 @@ def enforce_assignment_lifecycle(
     except (TypeError, ValueError):
         return
     writing = request.method not in {"GET", "HEAD", "OPTIONS"}
-    lock = " FOR UPDATE" if writing else ""
+    uploading = request.method == "POST" and request.url.path.endswith("/project-submissions")
+    # A slow upload must not hold the whole assignment locked. Intake status and
+    # server time are checked again atomically when its submission is inserted.
+    lock = " FOR UPDATE" if writing and not uploading else ""
     assignment = (
         db.execute(
             text(f"SELECT id,closed_at,deleted_at FROM assignments WHERE id=:id{lock}"), {"id": aid}

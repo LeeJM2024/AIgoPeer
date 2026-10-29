@@ -52,9 +52,16 @@ async function refreshReviewEntry() {
   }
 }
 
-function signOut() {
+async function signOut() {
   passwordDialogOpen.value = false
-  logout()
+  try {
+    await logout()
+  } catch (error) {
+    if (error.status !== 401) {
+      window.alert('退出未完成：' + error.message + ' 请重试。')
+      return
+    }
+  }
   router.push('/login')
 }
 function sessionExpired() {

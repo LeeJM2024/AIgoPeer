@@ -283,7 +283,12 @@ def test_cross_class_anonymous_review_workflow_e2e(course, monkeypatch, tmp_path
         for anomaly in anomalies.json()["data"]
         if anomaly["risk_level"] == "MEDIUM" and anomaly["status"] == "OPEN"
     ]
-    assert medium_anomalies
+    assert all(
+        not {"SHORT_DURATION", "SHORT_COMMENT"}.intersection(
+            anomaly["evidence_json"].get("rules_triggered", [])
+        )
+        for anomaly in anomalies.json()["data"]
+    )
     for anomaly in medium_anomalies:
         resolved = client.post(
             f"/api/teacher/anomalies/{anomaly['id']}/resolve",

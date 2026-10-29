@@ -3,7 +3,7 @@ import json
 import shutil
 import time
 from contextlib import contextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from app.core.config import settings
@@ -28,8 +28,8 @@ def as_student(user):
 @pytest.fixture
 def project_course(course, monkeypatch, tmp_path, request):
     c = course
-    deadline = datetime.now(UTC) + timedelta(seconds=getattr(request, "param", 86400))
     with c["engine"].begin() as db:
+        deadline = db.execute(text("SELECT clock_timestamp()")).scalar_one() + timedelta(seconds=getattr(request, "param", 86400))
         db.execute(text("UPDATE assignments SET submit_deadline=:deadline WHERE id=:a"), {"a": c["id"], "deadline": deadline})
     assert c["client"].post(f"/api/teacher/assignments/{c['id']}/publish").status_code == 200
     topic = c["client"].post("/api/teacher/topics", json={
@@ -53,6 +53,13 @@ def upload(c):
 
 def view(c):
     return c["client"].get(f"/api/student/assignments/{c['id']}/project-submission")
+
+
+def seconds_until_deadline(c):
+    # Windows and the Docker VM can have different clocks. The API uses PostgreSQL time.
+    with c["engine"].connect() as db:
+        return max(0, float(db.execute(text("SELECT EXTRACT(EPOCH FROM (:deadline - clock_timestamp()))"),
+                                      {"deadline": c["deadline"]}).scalar_one()))
 
 
 def test_current_project_is_own_safe_and_restorable_after_reupload(project_course):
@@ -89,7 +96,7 @@ def test_closed_project_is_readable_but_upload_rejected(project_course, closed_b
         assert accepted.status_code == 200
         sid = accepted.json()["data"]["submission_id"]
     if closed_by == "deadline":
-        time.sleep(max(0, (c["deadline"] - datetime.now(UTC)).total_seconds()) + .03)
+        time.sleep(seconds_until_deadline(c) + .1)
     else:
         assert c["client"].post(f"/api/teacher/assignments/{c['id']}/finish-submissions").status_code == 200
     with as_student(c["own"]):
@@ -140,7 +147,7 @@ def test_cutoff_after_file_received_rolls_back_and_cleans_new_archive(project_co
 
     async def expire_after_receiving(**kwargs):
         result = await real_store(**kwargs)
-        await asyncio.sleep(max(0, (c["deadline"] - datetime.now(UTC)).total_seconds()) + .03)
+        await asyncio.sleep(seconds_until_deadline(c) + .1)
         return result
 
     monkeypatch.setattr(route, "store_archive", expire_after_receiving)

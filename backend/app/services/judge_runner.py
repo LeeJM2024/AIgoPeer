@@ -7,7 +7,9 @@ nor the Vue client executes or receives hidden testcase data.
 
 from __future__ import annotations
 
+import os
 import shutil
+import stat
 import uuid
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
@@ -15,6 +17,7 @@ from pathlib import Path
 
 import docker
 from docker.errors import APIError, DockerException, NotFound
+from docker.types import LogConfig
 from requests.exceptions import ConnectionError, ReadTimeout
 from urllib3.exceptions import ReadTimeoutError
 
@@ -71,7 +74,11 @@ def _run_container(
             pids_limit=64,
             nano_cpus=1_000_000_000,
             mem_limit=f"{memory_limit_mb}m",
-            user="10001:10001",
+            user=f"{_work_uid(work_name)}:{_work_uid(work_name)}",
+            cap_drop=["ALL"],
+            log_config=LogConfig(type="json-file", config={"max-size": "1m", "max-file": "1"}),
+            ulimits=[docker.types.Ulimit(name="nofile", soft=128, hard=128),
+                     docker.types.Ulimit(name="core", soft=0, hard=0)],
             volumes={settings.judge_work_volume: {"bind": "/workspace", "mode": "rw"}},
             working_dir=f"/workspace/{work_name}",
         )
@@ -116,27 +123,51 @@ def _run_container(
                 pass
 
 
+def _work_uid(work_name: str) -> int:
+    # Each submission gets a distinct OS identity inside the shared worker volume.
+    if work_name.startswith("submission-"):
+        submission_id = int(work_name.split("-", 2)[1])
+        if not 0 < submission_id < 2**31 - 100000:
+            raise JudgeInfrastructureError("submission id exceeds sandbox identity range")
+        return 100000 + submission_id
+    return 10001  # Unit-test container names never handle submitted code.
+
+
 def _prepare_work_dir(*, submission_id: int, source_code: str) -> tuple[str, Path]:
     work_name = f"submission-{submission_id}-{uuid.uuid4().hex}"
     work_dir = settings.judge_work_dir / work_name
     try:
-        work_dir.mkdir(parents=True, exist_ok=False)
+        work_dir.mkdir(parents=True, exist_ok=False, mode=0o700)
         source_path = work_dir / "main.cpp"
         source_path.write_text(source_code, encoding="utf-8")
         # The worker is root in its private volume; the runner is deliberately not.
-        shutil.chown(work_dir, user=10001, group=10001)
-        shutil.chown(source_path, user=10001, group=10001)
+        uid = _work_uid(work_name)
+        shutil.chown(work_dir, user=uid, group=uid)
+        shutil.chown(source_path, user=uid, group=uid)
     except OSError as exc:
         shutil.rmtree(work_dir, ignore_errors=True)
         raise JudgeInfrastructureError("judge workspace is unavailable") from exc
     return work_name, work_dir
 
 
+def _read_regular(path: Path, limit: int) -> str:
+    # The worker is privileged; never follow student-created symlinks/FIFOs.
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    with os.fdopen(descriptor, "rb") as stream:
+        metadata = os.fstat(stream.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > limit or path.is_symlink():
+            raise ValueError("unsafe judge output")
+        data = stream.read(limit + 1)
+        if len(data) > limit:
+            raise ValueError("output exceeds limit")
+        return data.decode("utf-8", errors="replace")
+
+
 def _read_output(path: Path) -> str:
     try:
         if not path.exists() or path.stat().st_size > settings.judge_output_limit_bytes:
             raise ValueError("output exceeds limit")
-        return path.read_text(encoding="utf-8", errors="replace")
+        return _read_regular(path, settings.judge_output_limit_bytes)
     except OSError as exc:
         raise JudgeInfrastructureError("judge output cannot be read") from exc
 
@@ -144,7 +175,7 @@ def _read_output(path: Path) -> str:
 def _read_usage(path: Path) -> tuple[int, int]:
     """Read GNU time's final record, separate from student diagnostics."""
     try:
-        elapsed, memory = path.read_text(encoding="utf-8").splitlines()[-1].split()
+        elapsed, memory = _read_regular(path, 4096).splitlines()[-1].split()
         milliseconds = Decimal(elapsed) * 1000
         memory_kb = int(memory)
         if not milliseconds.is_finite() or milliseconds < 0 or memory_kb < 0:
@@ -171,7 +202,7 @@ def run_cpp17_submission(
             compile_result = _run_container(
                 work_name=work_name,
                 memory_limit_mb=memory_limit_mb,
-                script="g++ -std=c++17 -O2 -pipe -o main main.cpp",
+                script="ulimit -f 32768; g++ -std=c++17 -O2 -pipe -fmax-errors=10 -o main main.cpp",
                 timeout_seconds=max(5, settings.judge_total_time_limit_ms / 1000),
             )
         except TimeoutError:
@@ -199,10 +230,14 @@ def run_cpp17_submission(
             case_budget_ms = min(time_limit_ms, remaining_ms)
             input_path = work_dir / "input.txt"
             output_path = work_dir / "output.txt"
+            # A previous test may have replaced these with symlinks.
+            input_path.unlink(missing_ok=True)
+            output_path.unlink(missing_ok=True)
             input_path.write_text(case.input_data, encoding="utf-8")
             output_path.write_text("", encoding="utf-8")
-            shutil.chown(input_path, user=10001, group=10001)
-            shutil.chown(output_path, user=10001, group=10001)
+            uid = _work_uid(work_name)
+            shutil.chown(input_path, user=uid, group=uid)
+            shutil.chown(output_path, user=uid, group=uid)
             usage_path = work_dir / f"usage-{case_index}.txt"
             # `ulimit -f` keeps redirected program output within the agreed cap.
             file_blocks = max(1, settings.judge_output_limit_bytes // 512)

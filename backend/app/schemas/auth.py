@@ -1,9 +1,14 @@
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.core.input_security import normalize_account
+
 
 class LoginInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     account: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=1, max_length=256)
+
+    _account = field_validator("account", mode="before")(normalize_account)
 
 
 class ChangePasswordInput(BaseModel):

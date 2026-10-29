@@ -13,6 +13,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.input_security import normalize_account, validate_person_name
+
 
 class TeacherInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, allow_inf_nan=False)
@@ -148,6 +150,8 @@ class TopicUpdate(TopicInput):
 class StudentInput(TeacherInput):
     student_no: str = Field(min_length=1, max_length=32)
     name: str = Field(min_length=1, max_length=100)
+    _account = field_validator("student_no", mode="before")(normalize_account)
+    _name = field_validator("name")(validate_person_name)
     password: (
         Annotated[str, StringConstraints(strip_whitespace=False, min_length=10, max_length=128)]
         | None

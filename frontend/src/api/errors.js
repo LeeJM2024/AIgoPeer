@@ -1,4 +1,10 @@
 export const errorMessages = {
+  REQUEST_PROOF_REQUIRED: '请求缺少安全校验信息，请刷新页面后重试。',
+  REQUEST_EXPIRED: '请求已过期，请校准设备时间后重试。',
+  REQUEST_REPLAYED: '该请求已处理，请刷新数据后再操作。',
+  REQUEST_TOO_LARGE: '上传或请求内容超过大小限制。',
+  ORIGIN_NOT_ALLOWED: '请求来源不受信任，请从课程网站正常访问。',
+  API_RATE_LIMITED: '操作过于频繁，请稍后重试。',
   AI_KEY_REQUIRED: '请填写 API Key。',
   AI_KEY_REQUIRED_FOR_ENDPOINT: '更换服务商或接口地址后，请重新填写 API Key。',
   AI_KEY_UNREADABLE: '已保存密钥无法解密，请重新填写 API Key 并保存配置。',
