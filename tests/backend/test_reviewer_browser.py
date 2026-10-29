@@ -56,7 +56,9 @@ def test_task_gated_reviewer_workflow(
             page.wait_for_load_state("networkidle")
             page.get_by_label("账号", exact=True).fill(account)
             page.get_by_label("密码", exact=True).fill("Test-browser-123!")
-            page.get_by_role("button", name="登录", exact=True).click()
+            with page.expect_response("**/api/auth/login") as login_response:
+                page.get_by_role("button", name="登录", exact=True).click()
+            assert login_response.value.status == 200, login_response.value.text()
             page.wait_for_url("**/student")
             page.wait_for_load_state("networkidle")
 

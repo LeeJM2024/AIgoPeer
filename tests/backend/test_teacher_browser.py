@@ -18,12 +18,16 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture
-def browser_app(grading_course):
+def browser_app(grading_course, monkeypatch):
     import uvicorn
+    from app.core.config import settings
     from app.core.security import get_current_user, hash_password
     from app.main import app
 
     c = grading_course
+    monkeypatch.setattr(
+        settings, "cors_origins", f"{settings.cors_origins},http://127.0.0.1:15173"
+    )
     with c["engine"].begin() as conn:
         conn.execute(
             text("UPDATE users SET password_hash=:password WHERE id=:id"),
@@ -132,7 +136,9 @@ def test_real_teacher_workflow(browser_app, width, height, tmp_path, monkeypatch
             expect(page.get_by_label("账号", exact=True)).to_be_empty()
             page.get_by_label("账号", exact=True).fill("TEST-TEACHER")
             page.get_by_label("密码", exact=True).fill("Test-browser-123!")
-            page.get_by_role("button", name="登录", exact=True).click()
+            with page.expect_response("**/api/auth/login") as login_response:
+                page.get_by_role("button", name="登录", exact=True).click()
+            assert login_response.value.status == 200, login_response.value.text()
             page.wait_for_url("**/teacher")
             expect(page.locator(".metric-strip")).to_be_visible()
             page.wait_for_load_state("networkidle")

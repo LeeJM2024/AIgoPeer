@@ -183,22 +183,22 @@ def test_reviewer_download_failure_does_not_start_and_submit_is_atomic(
         )
 
 
-def test_historical_submission_does_not_grant_review_access(
+def test_assigned_submission_cannot_be_superseded_while_review_is_active(
     course, tmp_path, monkeypatch
 ):
     c = course
     reviewer, _, task, _ = _review_task(c, tmp_path, monkeypatch)
     client = as_user(c, reviewer)
-    with c["engine"].begin() as conn:
+    with pytest.raises(DBAPIError), c["engine"].begin() as conn:
         conn.execute(
             text("UPDATE submissions SET is_current=false,status='SUPERSEDED'")
         )
     assert client.get("/api/reviewer/eligibility").json()["data"] == {
-        "has_tasks": False
+        "has_tasks": True
     }
     assert (
         client.get(f"/api/reviewer/review-tasks/{task}/materials/archive").status_code
-        == 403
+        == 200
     )
 
 

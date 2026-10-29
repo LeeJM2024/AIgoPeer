@@ -386,12 +386,17 @@ def test_late_material_check_cannot_reactivate_historical_submission(course):
     from app.services.student.material_check_service import _record_result
 
     c = reviewed_course(course)
-    sid = c["submissions"][0]
     with c["engine"].begin() as conn:
-        conn.execute(
+        sid = conn.execute(
             text(
-                "UPDATE submissions SET is_current=false,status='SUPERSEDED' WHERE id=:s"
+                """INSERT INTO submissions(assignment_id,author_id,class_id,is_current,status,anonymous_token)
+                SELECT assignment_id,author_id,class_id,false,'SUPERSEDED','HISTORICAL-CHECK'
+                FROM submissions WHERE id=:s RETURNING id"""
             ),
+            {"s": c["submissions"][0]},
+        ).scalar_one()
+        conn.execute(
+            text("INSERT INTO material_checks(submission_id,status) VALUES (:s,'INVALID')"),
             {"s": sid},
         )
     with Session(c["engine"]) as db:

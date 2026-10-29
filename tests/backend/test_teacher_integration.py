@@ -296,7 +296,8 @@ def test_draft_edit_defers_directions_until_publish_and_rules_are_frozen(course)
     assert c["client"].post(url + "/publish").status_code == 200
     assert len(c["client"].get(url).json()["data"]["panels"]) == 2
     assert c["client"].put(url, json=payload).status_code == 409
-    assert c["client"].delete(url).status_code == 409
+    assert c["client"].delete(url).status_code == 200
+    assert c["client"].get(url).status_code == 404
 
 
 def test_high_risk_requires_final_review_and_medium_resolution_is_immutable(
@@ -382,6 +383,7 @@ def test_migration_downgrade_upgrade(pg_engine):
 
     from alembic import command
     from alembic.config import Config
+    from alembic.script import ScriptDirectory
 
     config = Config()
     config.set_main_option(
@@ -393,7 +395,7 @@ def test_migration_downgrade_upgrade(pg_engine):
         command.upgrade(config, "head")
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "20261022_0010"
+            == ScriptDirectory.from_config(config).get_current_head()
         )
 
 
