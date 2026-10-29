@@ -3,7 +3,7 @@ import json
 import shutil
 import time
 from contextlib import contextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from app.core.config import settings
@@ -28,8 +28,8 @@ def as_student(user):
 @pytest.fixture
 def project_course(course, monkeypatch, tmp_path, request):
     c = course
-    deadline = datetime.now(UTC) + timedelta(seconds=getattr(request, "param", 86400))
     with c["engine"].begin() as db:
+        deadline = db.execute(text("SELECT clock_timestamp()")).scalar_one() + timedelta(seconds=getattr(request, "param", 86400))
         db.execute(text("UPDATE assignments SET submit_deadline=:deadline WHERE id=:a"), {"a": c["id"], "deadline": deadline})
     assert c["client"].post(f"/api/teacher/assignments/{c['id']}/publish").status_code == 200
     topic = c["client"].post("/api/teacher/topics", json={
@@ -53,6 +53,13 @@ def upload(c):
 
 def view(c):
     return c["client"].get(f"/api/student/assignments/{c['id']}/project-submission")
+
+
+def seconds_until_deadline(c):
+    # Windows and the Docker VM can have different clocks. The API uses PostgreSQL time.
+    with c["engine"].connect() as db:
+        return max(0, float(db.execute(text("SELECT EXTRACT(EPOCH FROM (:deadline - clock_timestamp()))"),
+                                      {"deadline": c["deadline"]}).scalar_one()))
 
 
 def test_current_project_is_own_safe_and_restorable_after_reupload(project_course):
@@ -80,7 +87,7 @@ def test_current_project_is_own_safe_and_restorable_after_reupload(project_cours
         assert rows == [(1, False, "SUPERSEDED"), (2, True, "VALID")]
 
 
-@pytest.mark.parametrize("closed_by", ["deadline", "review_phase"])
+@pytest.mark.parametrize("closed_by", ["deadline", "teacher_finished"])
 @pytest.mark.parametrize("project_course", [4], indirect=True)
 def test_closed_project_is_readable_but_upload_rejected(project_course, closed_by):
     c = project_course
@@ -89,10 +96,9 @@ def test_closed_project_is_readable_but_upload_rejected(project_course, closed_b
         assert accepted.status_code == 200
         sid = accepted.json()["data"]["submission_id"]
     if closed_by == "deadline":
-        time.sleep(max(0, (c["deadline"] - datetime.now(UTC)).total_seconds()) + .03)
+        time.sleep(seconds_until_deadline(c) + .1)
     else:
-        with c["engine"].begin() as db:
-            db.execute(text("UPDATE assignments SET status='REVIEWER_GRADING' WHERE id=:a"), {"a": c["id"]})
+        assert c["client"].post(f"/api/teacher/assignments/{c['id']}/finish-submissions").status_code == 200
     with as_student(c["own"]):
         current = view(c).json()["data"]
         assert current["can_submit"] is False and current["submission"]["id"] == sid
@@ -100,6 +106,31 @@ def test_closed_project_is_readable_but_upload_rejected(project_course, closed_b
         rejected = upload(c)
         assert rejected.status_code == 400 and rejected.json()["detail"] == "INVALID_STATE"
     assert len(list((c["storage"] / "project-submissions").glob("*.zip"))) == 1
+
+
+def test_unassigned_project_can_be_updated_during_review(project_course):
+    c = project_course
+    with c["engine"].begin() as db:
+        db.execute(text("UPDATE assignments SET status='REVIEWER_GRADING' WHERE id=:a"), {"a": c["id"]})
+    with as_student(c["own"]):
+        assert view(c).json()["data"]["can_submit"]
+        assert upload(c).status_code == 200
+        assert upload(c).status_code == 200
+        assert view(c).json()["data"]["submission"]["version"] == 2
+
+
+def test_assigned_project_version_is_locked_during_parallel_intake(project_course):
+    from conftest import seed_review_tasks
+    c = project_course
+    with as_student(c["own"]):
+        first = upload(c)
+        assert first.status_code == 200
+    seed_review_tasks(c)
+    with as_student(c["own"]):
+        assert not view(c).json()["data"]["can_submit"]
+        response = upload(c)
+        assert response.status_code == 409 and response.json()["code"] == "SUBMISSION_ALREADY_ASSIGNED"
+        assert view(c).json()["data"]["submission"]["id"] == first.json()["data"]["submission_id"]
 
 
 @pytest.mark.parametrize("project_course", [4], indirect=True)
@@ -116,7 +147,7 @@ def test_cutoff_after_file_received_rolls_back_and_cleans_new_archive(project_co
 
     async def expire_after_receiving(**kwargs):
         result = await real_store(**kwargs)
-        await asyncio.sleep(max(0, (c["deadline"] - datetime.now(UTC)).total_seconds()) + .03)
+        await asyncio.sleep(seconds_until_deadline(c) + .1)
         return result
 
     monkeypatch.setattr(route, "store_archive", expire_after_receiving)

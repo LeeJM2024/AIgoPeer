@@ -4,26 +4,35 @@ import json
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
+from conftest import seed_review_tasks
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 
-def reviewed_course(course, high=False):
+def reviewed_course(
+    course,
+    high=False,
+    score=80,
+    missing_first=False,
+    short_first=False,
+    works_per_class=1,
+):
     c = course
     client = c["client"]
     assert client.post(f"/api/teacher/assignments/{c['id']}/publish").status_code == 200
     ids = []
     with c["engine"].begin() as conn:
-        for index in range(2):
+        for work_index in range(2 * works_per_class):
+            index, author_index = divmod(work_index, works_per_class)
             sid = conn.execute(
                 text("""INSERT INTO submissions(assignment_id,author_id,class_id,status,anonymous_token)
                 VALUES (:a,:u,:c,'VALID',:token) RETURNING id"""),
                 {
                     "a": c["id"],
-                    "u": c["reviewers"][index][0],
+                    "u": c["reviewers"][index][author_index],
                     "c": c["classes"][index],
-                    "token": f"REAL-{index}",
+                    "token": f"REAL-{work_index}",
                 },
             ).scalar_one()
             conn.execute(
@@ -33,12 +42,7 @@ def reviewed_course(course, high=False):
                 {"s": sid},
             )
             ids.append(sid)
-    assert (
-        client.post(
-            f"/api/teacher/assignments/{c['id']}/initialize-review-tasks"
-        ).status_code
-        == 200
-    )
+    seed_review_tasks(c)
     with c["engine"].begin() as conn:
         rubric = conn.execute(
             text(
@@ -54,17 +58,17 @@ def reviewed_course(course, high=False):
             .all()
         )
         for i, task in enumerate(tasks):
-            conn.execute(
-                text(
-                    "UPDATE review_tasks SET status='SUBMITTED',started_at=now()-interval '5 minutes',submitted_at=now() WHERE id=:id"
-                ),
-                {"id": task["id"]},
-            )
+            if missing_first and i == 0:
+                continue
             conn.execute(
                 text(
                     "INSERT INTO review_scores(review_task_id,rubric_item_id,score) VALUES (:t,:r,:score)"
                 ),
-                {"t": task["id"], "r": rubric, "score": 10 if high and i == 0 else 80},
+                {
+                    "t": task["id"],
+                    "r": rubric,
+                    "score": 10 if high and i == 0 else score,
+                },
             )
             conn.execute(
                 text(
@@ -75,6 +79,12 @@ def reviewed_course(course, high=False):
                     "comment": "算法说明和例题推演完整，复杂度分析清楚，已核对边界情况。"
                     * 3,
                 },
+            )
+            conn.execute(
+                text(
+                    "UPDATE review_tasks SET status='SUBMITTED',started_at=clock_timestamp()-make_interval(secs => :duration),submitted_at=clock_timestamp() WHERE id=:t"
+                ),
+                {"t": task["id"], "duration": 1 if short_first and i == 0 else 300},
             )
     return {
         **c,
@@ -149,13 +159,7 @@ def test_failed_aggregate_persistence_rolls_back_partial_output_and_can_retry(co
 
 
 def test_missing_fifth_review_blocks_aggregation(course):
-    c = reviewed_course(course)
-    with c["engine"].begin() as conn:
-        conn.execute(
-            text(
-                "UPDATE review_tasks SET status='PENDING' WHERE id=(SELECT min(id) FROM review_tasks)"
-            )
-        )
+    c = reviewed_course(course, missing_first=True)
     result = (
         c["client"]
         .post(f"/api/teacher/assignments/{c['id']}/aggregate-reviews")

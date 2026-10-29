@@ -4,9 +4,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import StudentProgrammingSubmissionView from './StudentProgrammingSubmissionView.vue'
 import * as api from '../../api/student/programmingSubmissions'
 import { currentUser } from '../../api/auth'
+import * as ai from '../../api/ai'
 
 vi.mock('vue-router', () => ({ RouterLink: { template: '<a><slot /></a>' } }))
 vi.mock('../../api/auth', () => ({ currentUser: vi.fn() }))
+vi.mock('../../api/ai', () => ({ getStudentAiStatus: vi.fn(), getAiHistory: vi.fn(), askAi: vi.fn() }))
 vi.mock('../../api/student/programmingSubmissions', () => ({
   getProgrammingProblem: vi.fn(), submitCode: vi.fn(), getCodeSubmission: vi.fn(), getCodeSubmissionHistory: vi.fn(),
 }))
@@ -22,6 +24,9 @@ beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
   currentUser.mockReturnValue({ id: 40, role: 'STUDENT' })
+  ai.getStudentAiStatus.mockResolvedValue({ configured: true, enabled: true, student_daily_limit: 30 })
+  ai.getAiHistory.mockResolvedValue({ items: [] })
+  ai.askAi.mockImplementation(async (_m, _id, payload) => ({ id: 1, ...payload, status: 'SUCCEEDED', answer: '逐行解释' }))
   api.getProgrammingProblem.mockResolvedValue({ title: '求和', samples: [], time_limit_ms: 2000, memory_limit_mb: 256 })
   api.getCodeSubmission.mockResolvedValue({ id: 7, version: 1, status: 'AC', passed_case_count: 2, executed_case_count: 2 })
   api.getCodeSubmissionHistory.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 5 })
@@ -111,4 +116,15 @@ it('提交被截止或状态规则拒绝时给出明确提示，不保存提交�
   expect(wrapper.get('[role=alert]').text()).toContain('作业已截止或当前状态不允许提交')
   expect(localStorage.getItem('algopeer:programming-submission:40:6')).toBeNull()
   expect(api.getCodeSubmission).not.toHaveBeenCalled()
+})
+
+it('编程页把编辑器选中片段和当前判题提交交给助教', async () => {
+  api.getCodeSubmissionHistory.mockResolvedValue({ items: [{ id: 7, version: 1, status: 'AC', is_current: true }], total: 1, page: 1 })
+  const w = open(); await flushPromises()
+  await w.get('#source-code').setValue('int main() { return 0; }')
+  const editor = w.get('#source-code')
+  editor.element.setSelectionRange(13, 21); await editor.trigger('select')
+  await w.findAll('button').find(b => b.text() === '问助教').trigger('click'); await flushPromises()
+  await w.findAll('button').find(b => b.text() === '解释代码').trigger('click'); await flushPromises()
+  expect(ai.askAi).toHaveBeenCalledWith('PROGRAMMING', '6', expect.objectContaining({ source_code: 'int main() { return 0; }', selected_code: 'return 0', submission_id: 7 }))
 })

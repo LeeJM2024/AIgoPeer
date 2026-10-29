@@ -7,15 +7,14 @@ from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
-    File,
-    Form,
     HTTPException,
     Query,
-    UploadFile,
+    Request,
     status,
 )
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
+from starlette.datastructures import UploadFile
 
 from app.core.config import settings
 from app.core.security import CurrentUser, get_current_user
@@ -65,35 +64,62 @@ def read_project_submission_history(
 ) -> ApiResponse:
     current_user = require_student(current_user)
     history = list_project_submissions(
-        db=db, assignment_id=assignment_id, student_id=current_user.id,
-        page=page, page_size=page_size,
+        db=db,
+        assignment_id=assignment_id,
+        student_id=current_user.id,
+        page=page,
+        page_size=page_size,
     )
     return ApiResponse(data=history.model_dump(mode="json"))
 
 
-@router.post("/assignments/{assignment_id}/project-submissions", response_model=ApiResponse)
+@router.post(
+    "/assignments/{assignment_id}/project-submissions",
+    response_model=ApiResponse,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "required": ["zip_file", "manifest"],
+                        "properties": {
+                            "zip_file": {"type": "string", "format": "binary"},
+                            "manifest": {"type": "string", "description": "JSON 材料索引"},
+                        },
+                    }
+                }
+            },
+        }
+    },
+)
 async def create_project_submission(
     assignment_id: int,
     background_tasks: BackgroundTasks,
-    zip_file: Annotated[UploadFile, File(description="课程小作业 ZIP 文件")],
-    manifest: Annotated[str, Form(description="由上传表单生成的 JSON 材料索引")],
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> ApiResponse:
     current_user = require_student(current_user)
-    try:
-        parsed_manifest = ProjectManifest.model_validate(json.loads(manifest))
-    except (json.JSONDecodeError, ValidationError) as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="VALIDATION_ERROR") from exc
-
     context = get_upload_context(db=db, assignment_id=assignment_id, student_id=current_user.id)
-    original_file_name = validate_archive_filename(file_name=zip_file.filename, context=context)
-    storage_key, archive_path = new_storage_path(storage_root=settings.storage_dir)
-    size_bytes, checksum = await store_archive(
-        upload_file=zip_file,
-        destination=archive_path,
-        max_bytes=settings.max_project_archive_bytes,
-    )
+    # Unlike File/Form parameters, manual parsing runs AFTER identity, nonce,
+    # rate and enrollment checks. Unauthenticated traffic never spools a ZIP.
+    async with request.form(max_files=1, max_fields=1, max_part_size=256 * 1024) as form:
+        zip_file, manifest = form.get("zip_file"), form.get("manifest")
+        if not isinstance(zip_file, UploadFile) or not isinstance(manifest, str):
+            raise HTTPException(422, "VALIDATION_ERROR")
+        try:
+            parsed_manifest = ProjectManifest.model_validate(json.loads(manifest))
+        except (json.JSONDecodeError, ValidationError) as exc:
+            raise HTTPException(422, "VALIDATION_ERROR") from exc
+        original_file_name = validate_archive_filename(file_name=zip_file.filename, context=context)
+        storage_key, archive_path = new_storage_path(storage_root=settings.storage_dir)
+        size_bytes, checksum = await store_archive(
+            upload_file=zip_file,
+            destination=archive_path,
+            max_bytes=settings.max_project_archive_bytes,
+        )
     try:
         created = create_pending_submission(
             db=db,

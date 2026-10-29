@@ -130,3 +130,20 @@ def test_outer_timeout_is_infrastructure_error(simulated_runner, monkeypatch):
     monkeypatch.setattr(judge_runner, "_run_container", run)
     with pytest.raises(judge_runner.JudgeInfrastructureError, match="wall timeout"):
         judge()
+
+
+def test_sandbox_submissions_have_distinct_os_identities():
+    assert judge_runner._work_uid('submission-1-random') != judge_runner._work_uid('submission-2-random')
+    assert judge_runner._work_uid('submission-1-first') == judge_runner._work_uid('submission-1-retry')
+
+
+def test_worker_rejects_symlinked_output(tmp_path):
+    secret = tmp_path / 'secret'
+    secret.write_text('not a student result')
+    output = tmp_path / 'output.txt'
+    try:
+        output.symlink_to(secret)
+    except OSError:
+        pytest.skip('Creating symlinks requires Windows developer mode')
+    with pytest.raises((judge_runner.JudgeInfrastructureError, ValueError)):
+        judge_runner._read_output(output)

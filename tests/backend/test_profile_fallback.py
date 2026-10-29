@@ -172,9 +172,38 @@ def test_consensus_keeps_behavior_evidence_and_task_ids_are_optional():
     result = aggregate(observations)
     assert len(result.anomalies) == 10
     for finding in result.anomalies:
-        assert finding.risk_level == "MEDIUM"
-        assert set(finding.evidence["rules_triggered"]) == {
-            "SHORT_DURATION",
-            "SHORT_COMMENT",
-        }
+        assert finding.risk_level == "LOW"
+        assert finding.risk_score == 0
+        assert finding.evidence["rules_triggered"] == []
+        assert finding.evidence["behavior_evidence"]["duration_seconds"] == 30
+        assert finding.evidence["behavior_evidence"]["comment_char_count"] == 5
     assert all(item.risk_level != "HIGH" for item in result.results)
+
+
+@pytest.mark.parametrize("duration,chars", [(0, 60), (300, 0), (1, 1)])
+@pytest.mark.parametrize("extreme", [False, True])
+def test_duration_and_comment_length_do_not_change_risk(duration, chars, extreme):
+    observations = panel_observations(3, (85, 65, 45))
+    if extreme:
+        observations[-1].rubric_scores[0].score = 5
+    baseline = aggregate(observations)
+    for observation in observations:
+        observation.duration_seconds = duration
+        observation.comment_length = chars
+    # Even legacy caller parameters cannot reactivate the retired signals.
+    result = aggregate(observations, short_duration_weight=100, short_comment_weight=100,
+                       medium_behavior_signals=1)
+    assert result.results == baseline.results
+    for actual, expected in zip(result.anomalies, baseline.anomalies, strict=True):
+        assert (actual.risk_level, actual.risk_score, actual.evidence["rules_triggered"]) == (
+            expected.risk_level, expected.risk_score, expected.evidence["rules_triggered"])
+
+
+def test_low_score_diversity_remains_without_short_behavior_escalation():
+    observations = panel_observations(scores=(85, 85, 85))
+    for observation in observations:
+        observation.duration_seconds = 1
+        observation.comment_length = 1
+    result = aggregate(observations)
+    assert all(f.risk_level == "LOW" and f.risk_score == 5 for f in result.anomalies)
+    assert all(f.evidence["rules_triggered"] == ["LOW_SCORE_DIVERSITY"] for f in result.anomalies)
