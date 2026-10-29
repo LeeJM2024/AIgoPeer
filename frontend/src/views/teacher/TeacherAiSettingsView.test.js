@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import TeacherAiSettingsView from './TeacherAiSettingsView.vue'
 import { deleteAiVideoSettings, getAiVideoSettings, saveAiVideoSettings, testAiVideoSettings } from '../../api/teacher'
 
@@ -8,6 +8,33 @@ vi.mock('../../api/teacher', () => ({ getAiVideoSettings: vi.fn(), saveAiVideoSe
 const config = { configured: false, enabled: false, provider: 'qwen', base_url: 'https://example.com/v1', model: 'qwen3.5-omni-flash' }
 const options = { global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } }
 beforeEach(() => { vi.resetAllMocks(); getAiVideoSettings.mockResolvedValue({ ...config }) })
+afterEach(() => { vi.useRealTimers() })
+
+it('配置请求未返回时，先展示整个界面并禁用保存', async () => {
+  let resolve
+  getAiVideoSettings.mockReturnValue(new Promise(done => { resolve = done }))
+  const wrapper = mount(TeacherAiSettingsView, options)
+  expect(wrapper.text()).toContain('从视频到可回看的证据')
+  expect(wrapper.find('#ai-provider').exists()).toBe(true)
+  expect(wrapper.get('fieldset').element.disabled).toBe(true)
+  expect(wrapper.get('button[type=submit]').element.disabled).toBe(true)
+  resolve(config); await flushPromises()
+  expect(wrapper.get('fieldset').element.disabled).toBe(false)
+  wrapper.unmount()
+})
+
+it('读取配置八秒超时后可重试，不把默认值作为已保存配置', async () => {
+  vi.useFakeTimers()
+  getAiVideoSettings.mockImplementationOnce(({ signal }) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))))
+  const wrapper = mount(TeacherAiSettingsView, options)
+  await vi.advanceTimersByTimeAsync(8000); await flushPromises()
+  expect(wrapper.get('[role=alert]').text()).toContain('读取配置超时')
+  expect(wrapper.get('fieldset').element.disabled).toBe(true)
+  await wrapper.findAll('button').find(b => b.text() === '重新加载').trigger('click'); await flushPromises()
+  expect(wrapper.get('fieldset').element.disabled).toBe(false)
+  expect(wrapper.text()).not.toContain('读取配置超时')
+  wrapper.unmount()
+})
 
 it('教师填写自己的密钥，保存成功后输入框清空', async () => {
   saveAiVideoSettings.mockResolvedValue({ ...config, configured: true, enabled: true })

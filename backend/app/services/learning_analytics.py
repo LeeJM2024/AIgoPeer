@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime
 
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 JUDGED = {"AC", "WA", "TLE", "RE", "CE"}
 
@@ -151,6 +152,13 @@ def _average(values):
 
 
 def get_learning_report(db, class_id=None):
+    # The caller may already have authenticated or loaded a class. Own the report
+    # transaction so its snapshot never depends on the caller's transaction state.
+    with Session(bind=db.get_bind()) as report_db:
+        return _read_learning_report(report_db, class_id)
+
+
+def _read_learning_report(db, class_id):
     # One read-only repeatable snapshot keeps denominators and evidence coherent.
     db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
     params = {"class_id": class_id}

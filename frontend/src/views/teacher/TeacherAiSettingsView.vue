@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { deleteAiVideoSettings, getAiVideoSettings, saveAiVideoSettings, testAiVideoSettings } from '../../api/teacher'
 import UiIcon from '../../components/UiIcon.vue'
@@ -14,21 +14,34 @@ const presets = {
 }
 const form = reactive({ provider: 'qwen', base_url: presets.qwen.base_url, model: presets.qwen.model, api_key: '', enabled: true })
 const saved = ref(null), loading = ref(true), busy = ref(''), error = ref(''), message = ref('')
+let requestController = null, disposed = false
 const hasSavedKey = computed(() => saved.value?.configured && saved.value.provider === form.provider && saved.value.base_url === form.base_url.trim().replace(/\/+$/, ''))
-const canSubmit = computed(() => form.base_url.trim() && form.model.trim() && (form.api_key.trim() || hasSavedKey.value))
+const canSubmit = computed(() => !loading.value && saved.value && form.base_url.trim() && form.model.trim() && (form.api_key.trim() || hasSavedKey.value))
 function apply(data) {
   saved.value = data
   Object.assign(form, { provider: data.provider, base_url: data.base_url, model: data.model,
     enabled: data.configured ? data.enabled : true, api_key: '' })
 }
 async function load() {
+  requestController?.abort()
+  const controller = new AbortController()
+  requestController = controller
+  const timeout = setTimeout(() => controller.abort(), 8000)
   loading.value = true
+  saved.value = null
   error.value = ''
-  try { apply(await getAiVideoSettings()) }
-  catch (err) { error.value = err.message }
-  finally { loading.value = false }
+  try {
+    const data = await getAiVideoSettings({ signal: controller.signal })
+    if (!disposed && requestController === controller) apply(data)
+  } catch (err) {
+    if (!disposed && requestController === controller) error.value = controller.signal.aborted ? '读取配置超时，请点击重新加载。' : err.message
+  } finally {
+    clearTimeout(timeout)
+    if (!disposed && requestController === controller) loading.value = false
+  }
 }
 onMounted(load)
+onBeforeUnmount(() => { disposed = true; requestController?.abort() })
 function changeProvider() {
   Object.assign(form, { base_url: presets[form.provider].base_url, model: presets[form.provider].model, api_key: '' })
   error.value = ''; message.value = ''
@@ -59,12 +72,12 @@ async function action(kind) {
     <header v-if="!embedded" class="page-heading"><div><p class="eyebrow">AI VIDEO REVIEW</p><h1>视频辅助评阅</h1><p class="muted">连接自己的模型服务，按课程评分表分析学生的视频讲解。</p></div></header>
     <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>
     <p v-if="message" class="notice notice-success" role="status">{{ message }}</p>
-    <div v-if="loading" class="skeleton-page" aria-label="正在加载配置" />
-    <button v-else-if="!saved" class="button button-secondary" @click="load">重新加载</button>
-    <div v-else class="ai-layout">
+    <p v-if="loading" role="status" class="muted">正在读取已保存配置…</p>
+    <button v-if="!loading && !saved" class="button button-secondary" @click="load">重新加载</button>
+    <div class="ai-layout">
       <form class="ai-settings" @submit.prevent="action('save')">
-        <div class="section-heading"><h2>模型连接</h2><span class="badge">{{ saved.configured ? (saved.enabled ? '已配置 · 已开启' : '已配置 · 已暂停') : '待配置' }}</span></div>
-        <fieldset :disabled="!!busy">
+        <div class="section-heading"><h2>模型连接</h2><span class="badge">{{ loading ? '读取配置中' : !saved ? '读取失败' : saved.configured ? (saved.enabled ? '已配置 · 已开启' : '已配置 · 已暂停') : '待配置' }}</span></div>
+        <fieldset :disabled="loading || !!busy || !saved">
           <label for="ai-provider">服务商</label>
           <select id="ai-provider" v-model="form.provider" @change="changeProvider"><option value="qwen">通义千问 · Qwen-Omni</option><option value="gemini">Google · Gemini</option></select>
           <label for="ai-base">接口地址 Base URL</label>
@@ -82,7 +95,7 @@ async function action(kind) {
           </div>
           <small class="muted">连接测试会发送系统生成的两秒音视频，产生少量模型调用费用；不会发送学生材料。</small>
         </fieldset>
-        <button v-if="saved.configured" type="button" class="button button-secondary button-small ai-delete" :disabled="!!busy" @click="action('delete')">删除已保存密钥并停止分析</button>
+        <button v-if="saved?.configured" type="button" class="button button-secondary button-small ai-delete" :disabled="!!busy" @click="action('delete')">删除已保存密钥并停止分析</button>
       </form>
       <aside class="ai-guide">
         <span class="service-icon"><UiIcon name="video" /></span>

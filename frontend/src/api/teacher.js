@@ -78,7 +78,7 @@ export const createTeacherFinalReview = (submissionId, payload) =>
 export const publishResults = (id) =>
   apiFetch(`/api/teacher/assignments/${id}/publish-results`, { method: 'POST' })
 export const getAiVideoStatus = () => apiFetch('/api/teacher/ai-video/status')
-export const getAiVideoSettings = () => apiFetch('/api/teacher/ai-video/settings')
+export const getAiVideoSettings = (options = {}) => apiFetch('/api/teacher/ai-video/settings', options)
 export const saveAiVideoSettings = (payload) => apiFetch('/api/teacher/ai-video/settings', {
   method: 'PUT', body: JSON.stringify(payload),
 })

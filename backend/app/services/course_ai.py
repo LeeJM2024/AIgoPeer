@@ -6,7 +6,6 @@ import json
 from cryptography.fernet import InvalidToken
 from fastapi import HTTPException
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 from app.services import text_ai_provider
 from app.services.student.programming_submission_service import get_programming_problem
@@ -134,9 +133,7 @@ def teaching_context(db, class_id):
         ).scalar_one_or_none()
     ):
         raise HTTPException(404, "NOT_FOUND")
-    # Report creates its own read-only snapshot; auth/context queries already ran in db.
-    with Session(db.get_bind()) as report_db:
-        report = get_learning_report(report_db, class_id)
+    report = get_learning_report(db, class_id)
     # Aggregates only; no identities, unpublished raw grades or other students' code.
     return report, {"class_id": class_id, "generated_at": report["generated_at"]}
 
