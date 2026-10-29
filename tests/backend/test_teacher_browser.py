@@ -154,12 +154,12 @@ def test_real_teacher_workflow(browser_app, width, height, tmp_path, monkeypatch
             page.get_by_role("button", name="关闭预览", exact=True).click()
             expect(page.get_by_role("button", name="发布全部成绩")).to_be_disabled()
             page.locator(".score-input input").fill("90")
-            page.get_by_label("教师反馈", exact=True).fill("已核对原始材料。")
+            page.get_by_label("教师反馈（选填）", exact=True).fill("已核对原始材料。")
             page.get_by_role("button", name="保存教师评分", exact=True).click()
             page.get_by_role("button", name="锁定当前评分", exact=True).click()
             page.get_by_role("button", name="创建更正版本", exact=True).click()
             page.locator(".score-input input").fill("95")
-            page.get_by_label("更正原因", exact=True).fill("复核例题步骤后更正")
+            page.get_by_label("更正原因（选填）", exact=True).fill("复核例题步骤后更正")
             page.get_by_role("button", name="保存更正版本", exact=True).click()
             page.get_by_role("button", name="锁定当前评分", exact=True).click()
             expect(page.locator(".grade-history summary").first).to_contain_text("v2")
@@ -187,7 +187,7 @@ def test_real_teacher_workflow(browser_app, width, height, tmp_path, monkeypatch
                 page.get_by_role("heading", name="高风险作品复核最终分")
             ).to_be_visible()
             page.get_by_label("复核最终分", exact=True).fill("91")
-            page.get_by_label("复核理由", exact=True).fill(
+            page.get_by_label("复核理由（选填）", exact=True).fill(
                 "已核对教师初评、同伴评分与异常证据。"
             )
             page.get_by_role("button", name="锁定复核最终分", exact=True).click()

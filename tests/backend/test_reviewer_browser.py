@@ -85,6 +85,9 @@ def test_task_gated_reviewer_workflow(
             )
             page.get_by_role("button", name="提交评分", exact=True).click()
             expect(page.get_by_role("status")).to_contain_text("评分已提交")
+            expect(page.get_by_role("button", name="修改评分", exact=True)).to_be_visible()
+            expect(page.locator(".score-input input")).to_be_disabled()
+            page.get_by_role("button", name="待完成", exact=True).click()
             expect(page.locator(".empty-state")).to_contain_text("没有待完成")
             with c["engine"].connect() as conn:
                 assert (
