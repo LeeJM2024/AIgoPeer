@@ -18,9 +18,6 @@ storage/
 tmp/
 postgres-data/
 redis-data/
-.playwright-cli/
-output/playwright/
-output/backups/
 
 # IDE / OS
 .idea/

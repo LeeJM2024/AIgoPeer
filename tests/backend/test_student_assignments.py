@@ -49,7 +49,6 @@ def test_student_workspace_returns_only_safe_current_student_summary() -> None:
                 "title": "算法微课期末作业",
                 "type": "FINAL_PROJECT",
                 "status": "SUBMITTING",
-                "can_submit": True,
                 "submit_deadline": datetime(2026, 12, 20, 15, 59, 59, tzinfo=UTC),
                 "review_deadline": datetime(2026, 12, 27, 15, 59, 59, tzinfo=UTC),
                 "submission_id": 301,
@@ -74,7 +73,6 @@ def test_student_workspace_returns_only_safe_current_student_summary() -> None:
                 "title": "算法微课期末作业",
                 "type": "FINAL_PROJECT",
                 "status": "SUBMITTING",
-                "can_submit": True,
                 "submit_deadline": "2026-12-20T15:59:59Z",
                 "review_deadline": "2026-12-27T15:59:59Z",
                 "submission": {

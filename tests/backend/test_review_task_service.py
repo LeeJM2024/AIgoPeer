@@ -1,20 +1,21 @@
-from app.schemas.review import AllocationWorkInput, InitializeRequest
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
+
+from app.schemas.review import InitializeRequest, PanelInput
 from app.services.review_task_service import build_task_plan
 
 
-def test_joint_random_plan_covers_all_works_with_distinct_cross_class_reviews():
+def test_fixed_five_reviewers_receive_every_valid_submission() -> None:
     request = InitializeRequest(
         assignment_id=1,
-        seed=22,
-        works=[
-            AllocationWorkInput(
-                submission_id=i, author_id=i, class_id=1 if i <= 10 else 2
-            )
-            for i in range(1, 21)
-        ],
+        panel=PanelInput(panel_id=11, target_class_id=1, reviewer_class_id=2, reviewer_ids=[21, 22, 23, 24, 25]),
+        valid_submission_ids=list(range(101, 109)),
     )
     plan = build_task_plan(request)
-    assert len(plan.tasks) == plan.expected_task_count == 100
-    pairs = {(t.reviewer_id, t.submission_id) for t in plan.tasks}
-    assert all((v, u) not in pairs for u, v in pairs)
-    assert len({t.reviewer_id for t in plan.tasks}) == 20
+
+    assert plan.expected_task_count == 40
+    assert len(plan.tasks) == 40
+    assert {task.reviewer_id for task in plan.tasks} == {21, 22, 23, 24, 25}
+    assert {task.submission_id for task in plan.tasks} == set(range(101, 109))

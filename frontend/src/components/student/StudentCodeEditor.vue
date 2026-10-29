@@ -7,7 +7,7 @@ const props = defineProps({
   maxLength: { type: Number, default: 65536 }
 })
 
-const emit = defineEmits(['update:modelValue', 'selection-change'])
+const emit = defineEmits(['update:modelValue'])
 const gutter = ref(null)
 const lineNumbers = computed(() => Array.from(
   { length: Math.max(1, props.modelValue.split('\n').length) },
@@ -16,10 +16,6 @@ const lineNumbers = computed(() => Array.from(
 
 function syncScroll(event) {
   if (gutter.value) gutter.value.scrollTop = event.target.scrollTop
-}
-function selection(event) {
-  const input = event.target
-  emit('selection-change', input.value.slice(input.selectionStart, input.selectionEnd))
 }
 </script>
 
@@ -36,9 +32,6 @@ function selection(event) {
       aria-label="C++17 源代码"
       @input="emit('update:modelValue', $event.target.value)"
       @scroll="syncScroll"
-      @select="selection"
-      @keyup="selection"
-      @mouseup="selection"
     />
   </div>
 </template>

@@ -3,7 +3,6 @@ import AssignmentArtwork from '../AssignmentArtwork.vue'
 import UiIcon from '../UiIcon.vue'
 import {
   assignmentAction,
-  assignmentTypeLabel,
   assignmentDestination,
   formatDeadline,
   submissionClosed,
@@ -20,7 +19,7 @@ defineProps({ assignment: { type: Object, required: true } })
     <div class="feature-copy">
       <div class="feature-meta">
         <span>{{
-          assignmentTypeLabel(assignment.type)
+          assignment.type === 'PROGRAMMING' ? '编程练习' : '期末项目'
         }}</span
         ><span class="status-badge" :data-state="assignment.status">{{
           assignment.status === 'PUBLISHED_RESULT'

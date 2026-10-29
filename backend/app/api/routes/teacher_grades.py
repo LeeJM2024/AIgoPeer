@@ -16,11 +16,7 @@ from app.schemas.teacher import (
     TeacherGradeCorrectionInput,
     TeacherGradeInput,
 )
-from app.services.teacher_grade_service import (
-    calculate_final_score,
-    calculate_teacher_total,
-    grade_score_preview,
-)
+from app.services.teacher_grade_service import calculate_final_score, calculate_teacher_total
 from app.services.teacher_workflow import (
     audit,
     lock_assignment,
@@ -62,7 +58,7 @@ def grading_workspace(
     assignment = (
         db.execute(
             text(
-                "SELECT id, title, type, status, teacher_weight, designated_review_weight FROM assignments WHERE id = :id"
+                "SELECT id, title, status, teacher_weight, designated_review_weight FROM assignments WHERE id = :id"
             ),
             {"id": assignment_id},
         )
@@ -71,8 +67,6 @@ def grading_workspace(
     )
     if assignment is None:
         raise HTTPException(status_code=404, detail="ASSIGNMENT_NOT_FOUND")
-    if assignment["type"] != "FINAL_PROJECT":
-        raise HTTPException(400, "REVIEWED_ASSIGNMENT_REQUIRED")
     rubric = (
         db.execute(
             text("""
@@ -88,69 +82,34 @@ def grading_workspace(
     submissions = (
         db.execute(
             text("""
-        WITH current_submissions AS (
-          SELECT * FROM submissions WHERE assignment_id = :id AND is_current
-        ), current_tasks AS (
-          SELECT rt.* FROM review_tasks rt
-          JOIN current_submissions s ON s.id = rt.submission_id
-          WHERE rt.is_active
-        ), revision_times AS (
-          SELECT rev.review_task_id, max(rev.created_at) AS last_revision_at
-          FROM review_revisions rev
-          JOIN current_tasks rt ON rt.id = rev.review_task_id
-          GROUP BY rev.review_task_id
-        ), review_stats AS (
-          SELECT rt.submission_id,
-                 count(DISTINCT rt.reviewer_id) AS task_count,
-                 count(*) FILTER (WHERE rt.status = 'SUBMITTED') AS completed_tasks,
-                 max(GREATEST(rt.submitted_at, revision_times.last_revision_at)) AS last_review_at
-          FROM current_tasks rt
-          LEFT JOIN revision_times ON revision_times.review_task_id = rt.id
-          GROUP BY rt.submission_id
-        ), anomaly_stats AS (
-          SELECT ar.submission_id, count(*) FILTER (WHERE ar.status = 'OPEN') AS open_anomaly_count
-          FROM anomaly_records ar
-          JOIN current_submissions s ON s.id = ar.submission_id
-          GROUP BY ar.submission_id
-        ), latest_teacher_grades AS (
-          SELECT DISTINCT ON (tg.submission_id) tg.*
-          FROM teacher_grades tg
-          JOIN current_submissions s ON s.id = tg.submission_id
-          ORDER BY tg.submission_id, tg.version DESC
-        ), latest_aggregates AS (
-          SELECT DISTINCT ON (ag.submission_id)
-                 ag.submission_id, ag.id, ag.total_score, ag.created_at
-          FROM designated_review_aggregates ag
-          JOIN review_panels p ON p.id = ag.panel_id
-          JOIN algorithm_runs run ON run.id = ag.algorithm_run_id
-          JOIN current_submissions s ON s.id = ag.submission_id
-          WHERE p.assignment_id = s.assignment_id
-            AND p.target_class_id = s.class_id
-            AND run.assignment_id = s.assignment_id
-            AND run.panel_id = p.id AND run.status = 'COMPLETED'
-          ORDER BY ag.submission_id, ag.created_at DESC, ag.id DESC
-        )
         SELECT s.id, s.anonymous_token, s.status, s.author_id, u.student_no, u.name AS author_name,
                c.name AS class_name, mc.status AS material_status, mc.missing_items,
                tg.id AS teacher_grade_id, tg.total_score AS teacher_score, tg.version AS teacher_grade_version,
                tg.locked_at, tg.feedback, tg.rubric_scores_json,
                agg.id AS aggregate_id, agg.total_score AS aggregate_score,
-               agg.created_at AS aggregate_created_at,
-               COALESCE(review_stats.task_count, 0) AS task_count,
-               COALESCE(review_stats.completed_tasks, 0) AS completed_tasks,
-               review_stats.last_review_at,
                s.final_review_status, fr.id AS final_review_id, fr.final_score AS final_review_score,
-               COALESCE(anomaly_stats.open_anomaly_count, 0) AS open_anomaly_count,
+               count(DISTINCT ar.id) FILTER (WHERE ar.status = 'OPEN') AS open_anomaly_count,
                fg.final_score, fg.published_at
-        FROM current_submissions s
+        FROM submissions s
         JOIN users u ON u.id = s.author_id JOIN classes c ON c.id = s.class_id
         LEFT JOIN material_checks mc ON mc.submission_id = s.id
-        LEFT JOIN latest_teacher_grades tg ON tg.submission_id = s.id
-        LEFT JOIN latest_aggregates agg ON agg.submission_id = s.id
-        LEFT JOIN review_stats ON review_stats.submission_id = s.id
-        LEFT JOIN anomaly_stats ON anomaly_stats.submission_id = s.id
+        LEFT JOIN LATERAL (
+          SELECT * FROM teacher_grades WHERE submission_id = s.id ORDER BY version DESC LIMIT 1
+        ) tg ON true
+        LEFT JOIN LATERAL (
+          SELECT ag.* FROM designated_review_aggregates ag
+          JOIN review_panels p ON p.id=ag.panel_id JOIN algorithm_runs run ON run.id=ag.algorithm_run_id
+          WHERE ag.submission_id=s.id AND p.assignment_id=s.assignment_id
+            AND p.target_class_id=s.class_id AND run.assignment_id=s.assignment_id
+            AND run.panel_id=p.id AND run.status='COMPLETED'
+          ORDER BY ag.created_at DESC,ag.id DESC LIMIT 1
+        ) agg ON true
+        LEFT JOIN anomaly_records ar ON ar.submission_id = s.id
         LEFT JOIN teacher_final_reviews fr ON fr.submission_id = s.id
         LEFT JOIN final_grades fg ON fg.submission_id = s.id
+        WHERE s.assignment_id = :id AND s.is_current
+        GROUP BY s.id, u.student_no, u.name, c.name, mc.status, mc.missing_items, tg.id, tg.total_score, tg.version,
+                 tg.locked_at, tg.feedback, tg.rubric_scores_json, agg.id, agg.total_score, s.final_review_status, fr.id, fr.final_score, fg.final_score, fg.published_at
         ORDER BY c.name, u.student_no
     """),
             {"id": assignment_id},
@@ -162,9 +121,7 @@ def grading_workspace(
         data={
             "assignment": dict(assignment),
             "rubric_items": [dict(row) for row in rubric],
-            "submissions": [
-                {**dict(row), **grade_score_preview(assignment, row)} for row in submissions
-            ],
+            "submissions": [dict(row) for row in submissions],
         }
     )
 
@@ -347,7 +304,7 @@ def list_anomalies(
         SELECT ar.*, s.anonymous_token, u.name AS author_name, u.student_no
         FROM anomaly_records ar JOIN submissions s ON s.id = ar.submission_id
         JOIN users u ON u.id = s.author_id
-        WHERE s.assignment_id = :id AND ar.evidence_json->>'risk_policy_retired' IS DISTINCT FROM 'true' ORDER BY ar.status = 'OPEN' DESC, ar.risk_score DESC, ar.created_at DESC
+        WHERE s.assignment_id = :id ORDER BY ar.status = 'OPEN' DESC, ar.risk_score DESC, ar.created_at DESC
     """),
             {"id": assignment_id},
         )
@@ -585,10 +542,7 @@ def publish_results(
             row["final_review_score"]
             if final_review
             else calculate_final_score(
-                row["teacher_score"],
-                row["aggregate_score"],
-                assignment["teacher_weight"],
-                assignment["designated_review_weight"],
+                row["teacher_score"], row["aggregate_score"], Decimal("0.60"), Decimal("0.40")
             )
         )
         db.execute(
@@ -605,8 +559,8 @@ def publish_results(
                 "source": "TEACHER_FINAL_REVIEW" if final_review else "NORMAL_BLEND",
                 "final_review": row["final_review_id"] if final_review else None,
                 "teacher": teacher.id,
-                "tw": assignment["teacher_weight"],
-                "rw": assignment["designated_review_weight"],
+                "tw": Decimal("0.60"),
+                "rw": Decimal("0.40"),
             },
         )
     db.execute(

@@ -13,8 +13,6 @@ from pydantic import (
     model_validator,
 )
 
-from app.core.input_security import normalize_account, validate_person_name
-
 
 class TeacherInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, allow_inf_nan=False)
@@ -60,42 +58,30 @@ class ProgrammingProblemInput(TeacherInput):
 
 class AssignmentCreate(TeacherInput):
     title: str = Field(min_length=1, max_length=200)
-    type: str = Field(pattern="^(PROGRAMMING|FINAL_PROJECT|ALGORITHM_ANALYSIS|PROOF|OPEN_ENDED)$")
-    statement: str = Field(default="", max_length=20000)
-    topic_ids: list[int] = Field(default_factory=list, max_length=50)
-    class_ids: list[int] = Field(min_length=1)
+    type: str = Field(pattern="^(PROGRAMMING|FINAL_PROJECT)$")
+    class_ids: list[int] = Field(min_length=2, max_length=2)
     submit_deadline: AwareDatetime
-    review_deadline: AwareDatetime | None = None
+    review_deadline: AwareDatetime
     teacher_weight: Decimal = Field(default=Decimal("0.60"), ge=0, le=1, decimal_places=4)
     designated_review_weight: Decimal = Field(default=Decimal("0.40"), ge=0, le=1, decimal_places=4)
-    rubric_items: list[RubricItemInput] = Field(default_factory=list)
+    rubric_items: list[RubricItemInput] = Field(min_length=1)
     programming_problem: ProgrammingProblemInput | None = None
 
     @model_validator(mode="after")
     def validate_assignment(self) -> AssignmentCreate:
-        if len(set(self.topic_ids)) != len(self.topic_ids):
-            raise ValueError("topic ids must be unique")
-        if self.type in {"ALGORITHM_ANALYSIS", "PROOF", "OPEN_ENDED"} and not self.statement:
-            raise ValueError("subjective problem statement is required")
+        if self.type == "FINAL_PROJECT" and (
+            self.teacher_weight,
+            self.designated_review_weight,
+        ) != (Decimal("0.60"), Decimal("0.40")):
+            raise ValueError("final project weights are fixed at 0.60/0.40")
         if self.type == "PROGRAMMING" and self.programming_problem is None:
             raise ValueError("programming problem and test cases are required")
         if self.type != "PROGRAMMING" and self.programming_problem is not None:
             raise ValueError("only programming assignments accept a programming problem")
-        if len(set(self.class_ids)) != len(self.class_ids):
-            raise ValueError("class ids must be unique")
-        if self.type == "FINAL_PROJECT":
-            if len(self.class_ids) != 2:
-                raise ValueError("final projects require exactly two distinct classes")
-            if self.review_deadline is None or self.review_deadline <= self.submit_deadline:
-                raise ValueError("review_deadline must be after submit_deadline")
-        if self.type in {"ALGORITHM_ANALYSIS", "PROOF", "OPEN_ENDED"}:
-            # These assignments record completion, with no scoring configuration.
-            self.rubric_items = []
-            self.review_deadline = None
-            self.teacher_weight = Decimal(1)
-            self.designated_review_weight = Decimal(0)
-        elif not self.rubric_items:
-            raise ValueError("scored assignments require a rubric")
+        if len(set(self.class_ids)) != 2:
+            raise ValueError("exactly two distinct classes are required")
+        if self.review_deadline <= self.submit_deadline:
+            raise ValueError("review_deadline must be after submit_deadline")
         if self.teacher_weight + self.designated_review_weight != Decimal(1):
             raise ValueError("teacher_weight and designated_review_weight must sum to 1")
         orders = [item.sort_order for item in self.rubric_items]
@@ -103,6 +89,34 @@ class AssignmentCreate(TeacherInput):
             raise ValueError("rubric total exceeds supported score range")
         if len(orders) != len(set(orders)):
             raise ValueError("rubric sort_order values must be unique")
+        return self
+
+
+class PanelConfigInput(BaseModel):
+    target_class_id: int
+    reviewer_class_id: int
+    reviewer_ids: list[int] = Field(min_length=5, max_length=5)
+
+    @model_validator(mode="after")
+    def validate_panel(self) -> PanelConfigInput:
+        if self.target_class_id == self.reviewer_class_id:
+            raise ValueError("target and reviewer classes must differ")
+        if len(set(self.reviewer_ids)) != 5:
+            raise ValueError("a panel requires five distinct reviewers")
+        return self
+
+
+class ReviewPanelsInput(BaseModel):
+    panels: list[PanelConfigInput] = Field(min_length=2, max_length=2)
+
+    @model_validator(mode="after")
+    def validate_opposite_panels(self) -> ReviewPanelsInput:
+        first, second = self.panels
+        if (
+            first.target_class_id != second.reviewer_class_id
+            or first.reviewer_class_id != second.target_class_id
+        ):
+            raise ValueError("the two panels must be opposite directions between the same classes")
         return self
 
 
@@ -118,17 +132,17 @@ class TeacherGradeInput(TeacherInput):
 
 class TeacherGradeCorrectionInput(TeacherGradeInput):
     expected_version: int = Field(ge=1)
-    reason: str = Field(default="", max_length=1000)
+    reason: str = Field(min_length=3, max_length=1000)
 
 
 class AnomalyResolutionInput(TeacherInput):
     status: str = Field(pattern="^(CONFIRMED|DISMISSED)$")
-    note: str = Field(default="", max_length=2000)
+    note: str = Field(min_length=2, max_length=2000)
 
 
 class TeacherFinalReviewInput(TeacherInput):
     final_score: Decimal = Field(ge=0, decimal_places=2)
-    reason: str = Field(default="", max_length=2000)
+    reason: str = Field(min_length=3, max_length=2000)
 
 
 class ClassInput(TeacherInput):
@@ -150,8 +164,6 @@ class TopicUpdate(TopicInput):
 class StudentInput(TeacherInput):
     student_no: str = Field(min_length=1, max_length=32)
     name: str = Field(min_length=1, max_length=100)
-    _account = field_validator("student_no", mode="before")(normalize_account)
-    _name = field_validator("name")(validate_person_name)
     password: (
         Annotated[str, StringConstraints(strip_whitespace=False, min_length=10, max_length=128)]
         | None
@@ -175,11 +187,3 @@ class ReviewDeadlineInput(TeacherInput):
 
 class DraftAssignmentUpdate(AssignmentCreate):
     expected_updated_at: AwareDatetime
-
-
-class AllocationStartInput(TeacherInput):
-    expected_snapshot_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
-
-
-class ReviewReplacementInput(TeacherInput):
-    reason: str = Field(min_length=3, max_length=1000)

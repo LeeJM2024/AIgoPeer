@@ -33,14 +33,14 @@ it('统计使用真实列表，筛选和搜索不改变总数', async () => {
   expect(wrapper.findAll('.assignment-card')).toHaveLength(2)
 })
 
-it('错误可重试，空列表提示联系教师确认课程安排', async () => {
+it('错误可重试，空列表提示联系教师加入班级', async () => {
   getMyAssignments.mockRejectedValueOnce(new Error('网络异常')).mockResolvedValueOnce([])
   const wrapper = open()
   await flushPromises()
   expect(wrapper.get('[role=alert]').text()).toContain('网络异常')
   await wrapper.get('.retry-button').trigger('click')
   await flushPromises()
-  expect(wrapper.text()).toContain('请联系任课教师确认课程班级与作业安排')
+  expect(wrapper.text()).toContain('请联系任课教师加入课程班级')
   expect(wrapper.find('[role=alert]').exists()).toBe(false)
 })
 

@@ -26,11 +26,6 @@ join review, grade, aggregation, or another student's data.
                 a.status,
                 a.submit_deadline,
                 a.review_deadline,
-                (a.status IN ('PUBLISHED','SUBMITTING','REVIEWER_GRADING')
-                  AND a.submissions_closed_at IS NULL
-                  AND (a.submit_deadline IS NULL OR a.submit_deadline > clock_timestamp())
-                  AND NOT EXISTS(SELECT 1 FROM review_tasks rt JOIN submissions s ON s.id=rt.submission_id
-                    WHERE s.assignment_id=a.id AND s.author_id=:student_id AND s.is_current AND rt.is_active)) AS can_submit,
                 COALESCE(latest_project.id, latest_code.id) AS submission_id,
                 COALESCE(latest_project.status, latest_code.status) AS submission_status,
                 material_checks.status AS material_check_status
@@ -40,7 +35,7 @@ join review, grade, aggregation, or another student's data.
                 FROM submissions AS submission
                 WHERE submission.assignment_id = a.id
                   AND submission.author_id = :student_id
-                  AND a.type <> 'PROGRAMMING'
+                  AND a.type = 'FINAL_PROJECT'
                   AND submission.is_current = TRUE
                 ORDER BY submission.submitted_at DESC NULLS LAST, submission.id DESC
                 LIMIT 1
@@ -57,7 +52,6 @@ join review, grade, aggregation, or another student's data.
             ) AS latest_code ON TRUE
             LEFT JOIN material_checks ON material_checks.submission_id = latest_project.id
             WHERE a.status <> 'DRAFT'
-              AND a.deleted_at IS NULL AND a.closed_at IS NULL
               AND EXISTS (
                   SELECT 1
                   FROM assignment_classes AS assignment_class
@@ -101,7 +95,6 @@ join review, grade, aggregation, or another student's data.
                 title=str(row["title"]),
                 type=str(row["type"]),
                 status=str(row["status"]),
-                can_submit=row["can_submit"],
                 submit_deadline=row["submit_deadline"],
                 review_deadline=row["review_deadline"],
                 submission=submission,

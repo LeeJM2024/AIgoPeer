@@ -3,7 +3,6 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import StudentCodeEditor from '../../components/student/StudentCodeEditor.vue'
-import AiConversation from '../../components/AiConversation.vue'
 import AssignmentArtwork from '../../components/AssignmentArtwork.vue'
 import { assignmentArt } from '../../presentation/assignments'
 import ProgrammingSubmissionResult from '../../components/student/ProgrammingSubmissionResult.vue'
@@ -24,7 +23,6 @@ const pollingStopped = ref(false)
 const draftMessage = ref('')
 const error = ref('')
 const history = ref(null)
-const assistantOpen = ref(false), selectedCode = ref('')
 let pollTimer = null
 let draftTimer = null
 let pollAttempts = 0
@@ -154,7 +152,6 @@ function refreshResult() {
 }
 
 watch(sourceCode, () => {
-  selectedCode.value = ''
   if (skipNextDraftSave) {
     skipNextDraftSave = false
     return
@@ -185,7 +182,7 @@ onBeforeUnmount(() => {
         <p class="problem-meta">C++17 · {{ problem.time_limit_ms }} ms · {{ problem.memory_limit_mb }} MiB</p>
       </header>
 
-      <div class="problem-grid" :class="{ 'with-assistant': assistantOpen }">
+      <div class="problem-grid">
         <article class="panel problem-panel">
           <h2>题目说明</h2>
           <figure v-if="assignmentArt(problem) !== 'code'" class="problem-art"><AssignmentArtwork :assignment="problem" /><figcaption>算法主题插画 · 具体要求以题目说明为准</figcaption></figure>
@@ -201,15 +198,14 @@ onBeforeUnmount(() => {
 
         <article class="panel submit-panel">
           <div class="submission-heading">
-            <div><h2>编写并提交</h2><p>点击提交进行判题；向助教提问时会发送当前代码。</p></div>
+            <div><h2>编写并提交</h2><p>代码只在点击提交后发送到服务器。</p></div>
             <span>C++17</span>
           </div>
           <div class="editor-tools">
             <p class="hint">{{ sourceByteSize }} / {{ maxSourceBytes }} 字节 · {{ draftMessage || '正在准备本地草稿。' }}</p>
             <button type="button" class="clear-button" @click="clearDraft">清除草稿</button>
-            <button type="button" class="clear-button" :aria-expanded="assistantOpen" aria-controls="programming-assistant" @click="assistantOpen = !assistantOpen">{{ assistantOpen ? '收起助教' : '问助教' }}</button>
           </div>
-          <StudentCodeEditor v-model="sourceCode" :disabled="isSubmitting || activeStatus" :max-length="maxSourceBytes" @selection-change="selectedCode = $event" />
+          <StudentCodeEditor v-model="sourceCode" :disabled="isSubmitting || activeStatus" :max-length="maxSourceBytes" />
           <p class="hint">隐藏测试用例不会展示；提交后会在隔离环境中编译和运行。</p>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
           <button class="submit-button" type="button" :disabled="isSubmitting || activeStatus" @click="handleSubmit">
@@ -217,7 +213,6 @@ onBeforeUnmount(() => {
           </button>
           <ProgrammingSubmissionResult v-if="submission" :submission="submission" :polling-stopped="pollingStopped" :is-refreshing="isRefreshing" @refresh="refreshResult" />
         </article>
-        <aside v-if="assistantOpen" id="programming-assistant" class="panel assistant-panel"><AiConversation :key="assignmentId" mode="PROGRAMMING" :context-id="assignmentId" :source-code="sourceCode" :selected-code="selectedCode" :submission-id="submission?.id ?? null" /></aside>
       </div>
       <ProgrammingSubmissionHistory ref="history" :assignment-id="assignmentId" :latest-result="submission" @current="restoreCurrentSubmission" />
     </template>
@@ -233,8 +228,6 @@ onBeforeUnmount(() => {
 .hero p { max-width: 760px; color: var(--muted); line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
 .hero .problem-meta { color: var(--primary); font-size: 14px; margin: 0; }
 .problem-grid { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); gap: 22px; align-items: start; }
-.problem-grid.with-assistant { grid-template-columns: minmax(220px,.8fr) minmax(300px,1fr) minmax(310px,.85fr); }
-@media (max-width: 1200px) { .problem-grid.with-assistant { grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); } .assistant-panel { grid-column: 1 / -1; } }
 .panel { min-width: 0; padding: 24px; color: var(--ink); border: 0; border-radius: var(--radius); background: var(--surface); }
 .panel h2, .panel h3 { margin: 0; }
 .problem-panel h3 { margin-top: 24px; font-size: 15px; }
@@ -256,6 +249,6 @@ onBeforeUnmount(() => {
 .submit-button { min-height: 44px; margin-top: 18px; padding: 10px 18px; border: 0; border-radius: 14px; color: white; background: var(--primary); font-size: 14px; font-weight: 600; }
 .submit-button:hover:not(:disabled) { background: var(--primary-hover); }
 .error { color: var(--danger); }
-@media (max-width: 900px) { .problem-grid, .problem-grid.with-assistant { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 900px) { .problem-grid { grid-template-columns: minmax(0,1fr); } }
 @media (max-width: 680px) { .panel { padding: 18px; } .hero h1 { font-size: 24px; } }
 </style>

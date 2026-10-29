@@ -14,14 +14,12 @@ const classes = ref([]),
   students = ref([]),
   selected = ref(null),
   error = ref(''),
-  importError = ref(''),
   notice = ref(''),
   busy = ref(false),
   loading = ref(true)
 const classForm = reactive({ name: '', course_term: '' }),
   editingId = ref(null),
   importText = ref('')
-const studentForm = reactive({ student_no: '', name: '', password: '' })
 let requestVersion = 0
 async function load() {
   classes.value = await getClasses()
@@ -31,11 +29,7 @@ async function choose(item) {
   selected.value = item
   students.value = []
   error.value = ''
-  importError.value = ''
   importText.value = ''
-  studentForm.student_no = ''
-  studentForm.name = ''
-  studentForm.password = ''
   try {
     const rows = await getClassStudents(item.id)
     if (version === requestVersion) students.value = rows
@@ -88,61 +82,28 @@ function cancelEdit() {
   classForm.course_term = ''
 }
 async function importRoster() {
-  if (busy.value || !selected.value) return
   error.value = ''
-  importError.value = ''
   notice.value = ''
   busy.value = true
   try {
-    const rows = importText.value.split(/\r?\n/).map((line, index) => {
-      if (!line.trim()) return null
-      const cells = line.includes('\t') ? line.split('\t') : line.trim().split(/\s+/)
-      if (cells.length < 2 || cells.length > 3 || !cells[0].trim() || !cells[1].trim())
+    const lines = importText.value.split(/\r?\n/).filter((line) => line.trim())
+    const rows = lines.map((line, index) => {
+      const cells = line.split('\t')
+      if (cells.length < 2 || cells.length > 3)
         throw new Error(
-          `第 ${index + 1} 行格式不正确：请用空格或制表符分隔学号、姓名、初始密码；姓名或密码含空格时，请从表格复制三列。`,
+          `第 ${index + 1} 行格式不正确，请从表格复制学号、姓名、初始密码三列。`,
         )
       return {
         student_no: cells[0].trim(),
         name: cells[1].trim(),
         password: cells[2] || undefined,
       }
-    }).filter(Boolean)
-    if (!rows.length) throw new Error('请填写学生名单。')
+    })
     const result = await importStudents(selected.value.id, rows)
     importText.value = ''
     await load()
     await choose(classes.value.find((c) => c.id === selected.value.id))
     notice.value = `已创建 ${result.created_accounts} 个账号，新增 ${result.new_enrollments} 名班级成员，${result.unchanged} 名已在班内。`
-  } catch (err) {
-    importError.value = err.message
-  } finally {
-    busy.value = false
-  }
-}
-async function addStudent() {
-  if (busy.value || !selected.value) return
-  error.value = ''
-  notice.value = ''
-  const student = {
-    student_no: studentForm.student_no.trim(),
-    name: studentForm.name.trim(),
-    password: studentForm.password,
-  }
-  if (!student.student_no || !student.name) {
-    error.value = '请填写学生的学号和姓名。'
-    return
-  }
-  if (student.password.length < 10 || student.password.length > 128 || !student.password.trim()) {
-    error.value = '初始密码须为 10～128 位，不能全为空格。'
-    return
-  }
-  busy.value = true
-  try {
-    const classId = selected.value.id
-    await importStudents(classId, [student])
-    await load()
-    await choose(classes.value.find((c) => c.id === classId))
-    notice.value = `已将 ${student.name}（${student.student_no}）添加到当前班级。`
   } catch (err) {
     error.value = err.message
   } finally {
@@ -266,20 +227,10 @@ async function remove(student) {
           <p v-if="!students.length" class="empty-state compact">
             班级暂无学生，可在下方添加。
           </p>
-          <form class="roster-import student-add-form" aria-label="添加学生" @submit.prevent="addStudent">
-            <h3>添加学生</h3>
-            <p class="muted">学号用作登录账号，姓名用作页面显示名称。学生登录后，右上角显示姓名，作业、评审和成绩均关联该学生账号。</p>
-            <fieldset class="form-grid bare-fieldset" :disabled="busy">
-              <label for="student-account">学号（登录账号）<input id="student-account" v-model="studentForm.student_no" maxlength="32" autocomplete="off" required /></label>
-              <label for="student-display-name">姓名（显示名称）<input id="student-display-name" v-model="studentForm.name" maxlength="100" autocomplete="off" required /></label>
-              <label for="student-initial-password">初始密码<input id="student-initial-password" v-model="studentForm.password" type="password" minlength="10" maxlength="128" autocomplete="new-password" required /></label>
-            </fieldset>
-            <div class="form-actions"><button class="button" type="submit" :disabled="busy">{{ busy ? '正在保存…' : '添加到当前班级' }}</button></div>
-          </form>
-          <form class="roster-import" aria-label="批量添加学生" @submit.prevent="importRoster">
+          <form class="roster-import" @submit.prevent="importRoster">
             <h3>批量添加学生</h3>
             <p class="muted">
-              每行填写“学号 姓名 初始密码”，用一个或多个空格分隔，也可从表格复制三列，不含表头，每行一人，最多200人。姓名或密码含空格时，请从表格复制，保留制表符分隔。新账号密码至少10位；已有账号填写原学号和姓名，初始密码可留空。导入不会重置已有密码，任何一行有冲突，整批不写入。学生登录后可在右上角修改密码。
+              从表格复制“学号、姓名、初始密码”三列，不含表头，每行一人，最多200人。学生已自行注册时，只需填写学号和注册姓名，初始密码可留空；新账号密码至少10位。导入不会重置已有密码，任何一行有冲突，整批不写入。
             </p>
             <label
               >学生名单<textarea
@@ -289,12 +240,9 @@ async function remove(student) {
                 autocomplete="off"
                 spellcheck="false"
                 :disabled="busy"
-                :aria-invalid="!!importError"
-                :aria-describedby="importError ? 'roster-import-error' : undefined"
-                placeholder="学号 姓名 初始密码（支持空格或表格制表符分隔）"
+                placeholder="在这里粘贴制表符分隔的名单"
               />
             </label>
-            <p v-if="importError" id="roster-import-error" class="notice notice-error" role="alert">{{ importError }}</p>
             <div class="form-actions">
               <button class="button" :disabled="busy || !importText.trim()">
                 {{ busy ? '正在保存…' : '导入到当前班级' }}

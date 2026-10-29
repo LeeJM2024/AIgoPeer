@@ -1,6 +1,4 @@
 // Presentation only: these labels and destinations do not grant submission rights.
-export const subjectiveTypes = ['ALGORITHM_ANALYSIS', 'PROOF', 'OPEN_ENDED']
-export const assignmentTypeLabel = (type) => ({ PROGRAMMING: '编程练习', FINAL_PROJECT: '期末项目', ALGORITHM_ANALYSIS: '算法分析题', PROOF: '证明题', OPEN_ENDED: '开放问答题' })[type] || type
 const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
   dateStyle: 'medium',
   timeStyle: 'short'
@@ -9,7 +7,6 @@ export const formatDeadline = (value) =>
   value ? dateFormatter.format(new Date(value)) : '未设置'
 export const submissionClosed = (assignment) =>
   Boolean(
-    assignment.can_submit === false ||
     assignment.submit_deadline &&
       new Date(assignment.submit_deadline).getTime() <= Date.now()
   )
@@ -47,7 +44,6 @@ export function submissionLabel(assignment) {
   if (!assignment.submission) return '未提交'
   if (assignment.type === 'PROGRAMMING')
     return `最近一次：${codeStatus(assignment.submission.status)}`
-  if (subjectiveTypes.includes(assignment.type)) return '已完成（答案已提交）'
   if (!assignment.submission.material_check_status)
     return `已提交（${materialStatus(assignment.submission.status)}）`
   return `已提交（材料检查：${materialStatus(assignment.submission.material_check_status)}）`
@@ -58,12 +54,9 @@ export function assignmentAction(assignment) {
     assignment.status === 'PUBLISHED_RESULT'
   )
     return '查看最终成绩'
-  if (subjectiveTypes.includes(assignment.type))
-    return submissionClosed(assignment) || !['PUBLISHED', 'SUBMITTING', 'REVIEWER_GRADING'].includes(assignment.status)
-      ? '查看答案与历史' : assignment.submission ? '查看并修改答案' : '在线作答'
   if (assignment.type === 'FINAL_PROJECT')
     return submissionClosed(assignment) ||
-      !['PUBLISHED', 'SUBMITTING', 'REVIEWER_GRADING'].includes(assignment.status)
+      !['PUBLISHED', 'SUBMITTING'].includes(assignment.status)
       ? '查看提交与材料检查'
       : assignment.submission
         ? '查看并重新上传'
@@ -75,8 +68,6 @@ export function assignmentAction(assignment) {
     : '继续编写'
 }
 export function assignmentDestination(assignment) {
-  if (subjectiveTypes.includes(assignment.type))
-    return `/student/assignments/${assignment.id}/subjective-submission`
   const page =
     assignment.type === 'FINAL_PROJECT'
       ? assignment.status === 'PUBLISHED_RESULT'
@@ -100,7 +91,7 @@ export function pendingAssignments(assignments) {
     .filter(
       (item) =>
         !submissionClosed(item) &&
-        ['PUBLISHED', 'SUBMITTING', 'REVIEWER_GRADING'].includes(item.status) &&
+        ['PUBLISHED', 'SUBMITTING'].includes(item.status) &&
         (!item.submission ||
           (item.type === 'PROGRAMMING' &&
             !['AC', 'QUEUED', 'RUNNING'].includes(item.submission.status)) ||

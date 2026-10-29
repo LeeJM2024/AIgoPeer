@@ -159,15 +159,78 @@ def main() -> None:
                 {"r": rubric_id, "n": name, "m": max_score, "o": order},
             )
 
-        # New assignments start without submissions or a manually selected panel.
-        # Upload real materials first, then confirm the actual participation snapshot.
-        db.execute(text("""UPDATE assignments SET review_seed=20261022,
-          submit_deadline=now()+interval '7 days',review_deadline=now()+interval '14 days'
-          WHERE id=:a"""), {"a": assignment_id})
+        topic_ids = list(db.execute(text("SELECT id FROM topics ORDER BY code")).scalars())
+        if len(topic_ids) < 8:
+            raise RuntimeError("the topic catalog must be seeded before demo data")
+
+        for target_class, reviewer_class in ((1, 2), (2, 1)):
+            panel_id = scalar_id(
+                db,
+                """INSERT INTO review_panels(assignment_id, target_class_id, reviewer_class_id, status)
+                   VALUES (:assignment_id, :target, :reviewer, 'DRAFT') RETURNING id""",
+                assignment_id=assignment_id,
+                target=class_ids[target_class],
+                reviewer=class_ids[reviewer_class],
+            )
+            for reviewer_id in students[reviewer_class][:5]:
+                db.execute(
+                    text(
+                        "INSERT INTO panel_reviewers(panel_id, reviewer_id) VALUES (:panel_id, :reviewer_id)"
+                    ),
+                    {"panel_id": panel_id, "reviewer_id": reviewer_id},
+                )
+            db.execute(
+                text("UPDATE review_panels SET status = 'ACTIVE' WHERE id = :panel_id"),
+                {"panel_id": panel_id},
+            )
+            for sequence, author_id in enumerate(students[target_class][:8], start=1):
+                topic_claim_id = scalar_id(
+                    db,
+                    """INSERT INTO topic_claims(assignment_id, student_id, topic_id)
+                       VALUES (:assignment_id, :student_id, :topic_id)
+                       ON CONFLICT (assignment_id, student_id) DO UPDATE SET topic_id = EXCLUDED.topic_id
+                       RETURNING id""",
+                    assignment_id=assignment_id,
+                    student_id=author_id,
+                    topic_id=topic_ids[sequence - 1],
+                )
+                submission_id = scalar_id(
+                    db,
+                    """INSERT INTO submissions(
+                         assignment_id, author_id, class_id, status, anonymous_token, submitted_at, topic_claim_id
+                       ) VALUES (
+                         :assignment_id, :author_id, :class_id, 'VALID', :token, now(), :topic_claim_id
+                       ) RETURNING id""",
+                    assignment_id=assignment_id,
+                    author_id=author_id,
+                    class_id=class_ids[target_class],
+                    token=f"DEMO-{target_class}-{sequence:02d}",
+                    topic_claim_id=topic_claim_id,
+                )
+                db.execute(
+                    text(
+                        "INSERT INTO material_checks(submission_id, status, checked_at) VALUES (:id, 'VALID', now())"
+                    ),
+                    {"id": submission_id},
+                )
+                for reviewer_id in students[reviewer_class][:5]:
+                    db.execute(
+                        text("""INSERT INTO review_tasks(panel_id, submission_id, reviewer_id, anonymous_token)
+                                VALUES (:panel, :submission, :reviewer, :token)"""),
+                        {
+                            "panel": panel_id,
+                            "submission": submission_id,
+                            "reviewer": reviewer_id,
+                            "token": f"DEMO-{target_class}-{sequence:02d}",
+                        },
+                    )
+        db.execute(
+            text("UPDATE assignments SET status='REVIEWER_GRADING' WHERE id=:id"),
+            {"id": assignment_id},
+        )
         db.commit()
         print(
-            f"Demo seed created: programming_assignment_id={programming_assignment_id}; "
-            f"final_project_draft_id={assignment_id}; no fabricated submissions or fixed panel tasks."
+            f"Demo seed created: assignment_id={assignment_id}; two active panels; 80 review tasks."
         )
     except Exception:
         db.rollback()

@@ -1,5 +1,4 @@
-from algorithm.algorithms.allocation import AllocationError
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -18,10 +17,7 @@ def initialize_designated_review_tasks(payload: InitializeRequest) -> ApiRespons
     Reverse-proxy policy must restrict `/internal/*` to backend/worker networks.
     It deliberately produces no author identity or teacher-grade fields.
     """
-    try:
-        return ApiResponse(data=build_task_plan(payload).model_dump())
-    except AllocationError as exc:
-        raise HTTPException(422, {"code": exc.code, "diagnostics": exc.details}) from exc
+    return ApiResponse(data=build_task_plan(payload).model_dump())
 
 
 @router.post("/aggregate", response_model=ApiResponse)

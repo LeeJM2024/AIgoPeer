@@ -55,11 +55,6 @@ def _editable_topic(db, topic_id):
         text("SELECT EXISTS(SELECT 1 FROM topic_claims WHERE topic_id=:id)"), {"id": topic_id}
     ).scalar_one():
         raise HTTPException(409, "TOPIC_ALREADY_CLAIMED")
-    if db.execute(
-        text("SELECT EXISTS(SELECT 1 FROM assignment_topics WHERE topic_id=:id)"),
-        {"id": topic_id},
-    ).scalar_one():
-        raise HTTPException(409, "TOPIC_USED_BY_ASSIGNMENT")
     return row
 
 

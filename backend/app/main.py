@@ -4,16 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.router import api_router, internal_router
 from app.core.config import settings
-from app.core.http_security import HttpSecurityMiddleware
 
-app = FastAPI(title=settings.app_name, version="0.1.0",
-              docs_url=None if settings.app_env == "production" else "/docs",
-              redoc_url=None if settings.app_env == "production" else "/redoc",
-              openapi_url=None if settings.app_env == "production" else "/openapi.json")
+app = FastAPI(title=settings.app_name, version="0.1.0")
 
 
 @app.exception_handler(HTTPException)
@@ -66,11 +61,9 @@ async def integrity_error(_request: Request, _exc: IntegrityError):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-Nonce", "X-Request-Timestamp"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_host_list)
-app.add_middleware(HttpSecurityMiddleware)
 app.include_router(api_router, prefix=settings.api_prefix)
 app.include_router(internal_router, prefix="/internal")
