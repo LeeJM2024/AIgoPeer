@@ -1,0 +1,2726 @@
+{
+  "generated_at": "2026-10-29T16:18:47.274396+00:00",
+  "allocation_version": "1.0.0",
+  "aggregation_version": "2.1.0",
+  "aggregation_parameters": {
+    "theta_prior_mean": 0.5,
+    "theta_prior_std": 0.25,
+    "bias_prior_std": 0.15,
+    "sigma_min": 0.05,
+    "sigma_prior_mean": 0.12,
+    "pi_alpha": 1.0,
+    "pi_beta": 20.0,
+    "max_iterations": 100,
+    "convergence_tolerance": 1e-06,
+    "random_seed": 20261003,
+    "min_completed_works": 3,
+    "required_reviewers": 5,
+    "small_panel_unanimous_ci_exemption": 1,
+    "credible_interval_z": 1.96,
+    "wide_interval_threshold": 0.2,
+    "prior_only_wide_interval_threshold": 0.25,
+    "peer_span_threshold": 0.15,
+    "outlier_deviation_threshold": 0.3,
+    "posterior_outlier_threshold": 0.95,
+    "model_median_conflict_threshold": 0.15,
+    "low_entropy_min_items": 3,
+    "low_entropy_threshold": 0.2,
+    "hard_outlier_weight": 0.45,
+    "posterior_weight": 0.35,
+    "low_entropy_weight": 0.05,
+    "medium_risk_threshold": 50
+  },
+  "seeds": [
+    41,
+    42,
+    43
+  ],
+  "initial_round": [
+    {
+      "sizes": [
+        10,
+        10
+      ],
+      "seed": 41,
+      "status": "COMPLETED",
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 200,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.048125,
+        "time_limit_seconds": 20,
+        "constraint_count": 140
+      },
+      "metrics": {
+        "task_count": 100,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        }
+      },
+      "elapsed_seconds": 16.279351999999562
+    },
+    {
+      "sizes": [
+        10,
+        10
+      ],
+      "seed": 42,
+      "status": "COMPLETED",
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 200,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.016126,
+        "time_limit_seconds": 20,
+        "constraint_count": 140
+      },
+      "metrics": {
+        "task_count": 100,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        }
+      },
+      "elapsed_seconds": 0.016480799999953888
+    },
+    {
+      "sizes": [
+        10,
+        10
+      ],
+      "seed": 43,
+      "status": "COMPLETED",
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 200,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.020059,
+        "time_limit_seconds": 20,
+        "constraint_count": 140
+      },
+      "metrics": {
+        "task_count": 100,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        }
+      },
+      "elapsed_seconds": 0.020406499999808148
+    },
+    {
+      "sizes": [
+        100,
+        40
+      ],
+      "seed": 41,
+      "status": "COMPLETED",
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 8000,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 1.500032,
+        "time_limit_seconds": 20,
+        "constraint_count": 4280
+      },
+      "metrics": {
+        "task_count": 700,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 1
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        }
+      },
+      "elapsed_seconds": 1.5031233999998221
+    },
+    {
+      "sizes": [
+        100,
+        40
+      ],
+      "seed": 42,
+      "status": "COMPLETED",
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 8000,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.366075,
+        "time_limit_seconds": 20,
+        "constraint_count": 4280
+      },
+      "metrics": {
+        "task_count": 700,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 1
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        }
+      },
+      "elapsed_seconds": 0.36862399999972695
+    },
+    {
+      "sizes": [
+        100,
+        40
+      ],
+      "seed": 43,
+      "status": "COMPLETED",
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 8000,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.239008,
+        "time_limit_seconds": 20,
+        "constraint_count": 4280
+      },
+      "metrics": {
+        "task_count": 700,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 1
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        }
+      },
+      "elapsed_seconds": 0.24191849999988335
+    },
+    {
+      "sizes": [
+        120,
+        40
+      ],
+      "seed": 41,
+      "status": "COMPLETED",
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 9600,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.234583,
+        "time_limit_seconds": 20,
+        "constraint_count": 5120
+      },
+      "metrics": {
+        "task_count": 800,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 1,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        }
+      },
+      "elapsed_seconds": 0.23679979999997158
+    },
+    {
+      "sizes": [
+        120,
+        40
+      ],
+      "seed": 42,
+      "status": "COMPLETED",
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 9600,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.245715,
+        "time_limit_seconds": 20,
+        "constraint_count": 5120
+      },
+      "metrics": {
+        "task_count": 800,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 1,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        }
+      },
+      "elapsed_seconds": 0.24821630000042205
+    },
+    {
+      "sizes": [
+        120,
+        40
+      ],
+      "seed": 43,
+      "status": "COMPLETED",
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 9600,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.495986,
+        "time_limit_seconds": 20,
+        "constraint_count": 5120
+      },
+      "metrics": {
+        "task_count": 800,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 1,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        }
+      },
+      "elapsed_seconds": 0.4986514000001989
+    }
+  ],
+  "results": [
+    {
+      "sizes": [
+        10,
+        10
+      ],
+      "seed": 41,
+      "baselines": {
+        "fixed_five": {
+          "task_count": 100,
+          "all_exact_five": true,
+          "reciprocal_pairs": 25,
+          "load_gap_by_class": {
+            "1": 10,
+            "2": 10
+          },
+          "repeated_edge_rate": 0.54,
+          "history_cost": 1080,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 15
+            },
+            "2": {
+              "components": 1,
+              "nodes": 15
+            }
+          }
+        },
+        "random": {
+          "task_count": 100,
+          "all_exact_five": true,
+          "reciprocal_pairs": 22,
+          "load_gap_by_class": {
+            "1": 3,
+            "2": 5
+          },
+          "repeated_edge_rate": 0.48,
+          "history_cost": 960,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 20
+            },
+            "2": {
+              "components": 1,
+              "nodes": 20
+            }
+          }
+        },
+        "balanced": {
+          "task_count": 100,
+          "all_exact_five": true,
+          "reciprocal_pairs": 26,
+          "load_gap_by_class": {
+            "1": 0,
+            "2": 0
+          },
+          "repeated_edge_rate": 0.48,
+          "history_cost": 960,
+          "graph": {
+            "1": {
+              "components": 2,
+              "nodes": 20
+            },
+            "2": {
+              "components": 2,
+              "nodes": 20
+            }
+          }
+        }
+      },
+      "status": "COMPLETED",
+      "elapsed_seconds": 0.049473699999907694,
+      "before_structure": {
+        "task_count": 100,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 0
+        },
+        "repeated_edge_rate": 0.28,
+        "history_cost": 560,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        }
+      },
+      "after_structure": {
+        "task_count": 100,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 0
+        },
+        "repeated_edge_rate": 0.28,
+        "history_cost": 560,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        }
+      },
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 200,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "history_cost": 560,
+        "elapsed_seconds": 0.049208,
+        "time_limit_seconds": 60,
+        "constraint_count": 140
+      },
+      "aggregation": [
+        {
+          "scenario": "normal",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0,
+          "errors": {
+            "mean": {
+              "mae": 2.069998811325708,
+              "rmse": 2.331251448483191
+            },
+            "median": {
+              "mae": 1.9985559146741558,
+              "rmse": 2.4665720520927894
+            },
+            "trimmed_mean": {
+              "mae": 2.1404723417777918,
+              "rmse": 2.548923711175521
+            },
+            "sparse_bayes": {
+              "mae": 1.1454116602289381,
+              "rmse": 1.4578466666674679
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 1,
+          "interval_mean_width": 11.6825,
+          "learned_profiles": 20,
+          "prior_profiles": 0,
+          "bias_mae_learned": 1.2076372734470262,
+          "bias_mae_prior": null,
+          "detection": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "false_positive_rate": 0.0,
+            "high_task_count": 0
+          }
+        },
+        {
+          "scenario": "contaminated",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0.1,
+          "errors": {
+            "mean": {
+              "mae": 6.7090767029502425,
+              "rmse": 12.327610447169018
+            },
+            "median": {
+              "mae": 6.0985140790879315,
+              "rmse": 16.428296838871336
+            },
+            "trimmed_mean": {
+              "mae": 5.691906858784783,
+              "rmse": 12.683630777637845
+            },
+            "sparse_bayes": {
+              "mae": 4.65333648170267,
+              "rmse": 15.677099070266012
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 0.95,
+          "interval_mean_width": 12.427,
+          "learned_profiles": 20,
+          "prior_profiles": 0,
+          "bias_mae_learned": 1.0806033417242462,
+          "bias_mae_prior": null,
+          "detection": {
+            "tp": 5,
+            "fp": 2,
+            "fn": 3,
+            "precision": 0.7142857142857143,
+            "recall": 0.625,
+            "false_positive_rate": 0.021739130434782608,
+            "high_task_count": 7
+          }
+        }
+      ]
+    },
+    {
+      "sizes": [
+        10,
+        10
+      ],
+      "seed": 42,
+      "baselines": {
+        "fixed_five": {
+          "task_count": 100,
+          "all_exact_five": true,
+          "reciprocal_pairs": 25,
+          "load_gap_by_class": {
+            "1": 10,
+            "2": 10
+          },
+          "repeated_edge_rate": 0.52,
+          "history_cost": 1040,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 15
+            },
+            "2": {
+              "components": 1,
+              "nodes": 15
+            }
+          }
+        },
+        "random": {
+          "task_count": 100,
+          "all_exact_five": true,
+          "reciprocal_pairs": 23,
+          "load_gap_by_class": {
+            "1": 6,
+            "2": 6
+          },
+          "repeated_edge_rate": 0.5,
+          "history_cost": 1000,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 20
+            },
+            "2": {
+              "components": 1,
+              "nodes": 20
+            }
+          }
+        },
+        "balanced": {
+          "task_count": 100,
+          "all_exact_five": true,
+          "reciprocal_pairs": 22,
+          "load_gap_by_class": {
+            "1": 0,
+            "2": 0
+          },
+          "repeated_edge_rate": 0.46,
+          "history_cost": 920,
+          "graph": {
+            "1": {
+              "components": 2,
+              "nodes": 20
+            },
+            "2": {
+              "components": 2,
+              "nodes": 20
+            }
+          }
+        }
+      },
+      "status": "COMPLETED",
+      "elapsed_seconds": 0.04164660000060394,
+      "before_structure": {
+        "task_count": 100,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 0
+        },
+        "repeated_edge_rate": 0.28,
+        "history_cost": 560,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        }
+      },
+      "after_structure": {
+        "task_count": 100,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 0
+        },
+        "repeated_edge_rate": 0.28,
+        "history_cost": 560,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        }
+      },
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 200,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "history_cost": 560,
+        "elapsed_seconds": 0.041467,
+        "time_limit_seconds": 60,
+        "constraint_count": 140
+      },
+      "aggregation": [
+        {
+          "scenario": "normal",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0,
+          "errors": {
+            "mean": {
+              "mae": 1.6240058365170877,
+              "rmse": 1.9020754408381124
+            },
+            "median": {
+              "mae": 2.9201861521389847,
+              "rmse": 3.3144260705728685
+            },
+            "trimmed_mean": {
+              "mae": 2.3838488607093127,
+              "rmse": 2.761292642847046
+            },
+            "sparse_bayes": {
+              "mae": 1.0245453952686976,
+              "rmse": 1.2288565955509112
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 1,
+          "interval_mean_width": 11.766,
+          "learned_profiles": 20,
+          "prior_profiles": 0,
+          "bias_mae_learned": 0.8306802351973422,
+          "bias_mae_prior": null,
+          "detection": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "false_positive_rate": 0.0,
+            "high_task_count": 0
+          }
+        },
+        {
+          "scenario": "contaminated",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0.1,
+          "errors": {
+            "mean": {
+              "mae": 5.8903064634492885,
+              "rmse": 8.497324144402329
+            },
+            "median": {
+              "mae": 2.5903752480199502,
+              "rmse": 2.9577786313700134
+            },
+            "trimmed_mean": {
+              "mae": 3.686598143281895,
+              "rmse": 5.809300583776713
+            },
+            "sparse_bayes": {
+              "mae": 1.3416871998571254,
+              "rmse": 1.5952105364935587
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 1,
+          "interval_mean_width": 12.597499999999998,
+          "learned_profiles": 20,
+          "prior_profiles": 0,
+          "bias_mae_learned": 1.0186652016443327,
+          "bias_mae_prior": null,
+          "detection": {
+            "tp": 8,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "false_positive_rate": 0.0,
+            "high_task_count": 8
+          }
+        }
+      ]
+    },
+    {
+      "sizes": [
+        10,
+        10
+      ],
+      "seed": 43,
+      "baselines": {
+        "fixed_five": {
+          "task_count": 100,
+          "all_exact_five": true,
+          "reciprocal_pairs": 25,
+          "load_gap_by_class": {
+            "1": 10,
+            "2": 10
+          },
+          "repeated_edge_rate": 0.45,
+          "history_cost": 900,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 15
+            },
+            "2": {
+              "components": 1,
+              "nodes": 15
+            }
+          }
+        },
+        "random": {
+          "task_count": 100,
+          "all_exact_five": true,
+          "reciprocal_pairs": 22,
+          "load_gap_by_class": {
+            "1": 5,
+            "2": 7
+          },
+          "repeated_edge_rate": 0.46,
+          "history_cost": 920,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 20
+            },
+            "2": {
+              "components": 1,
+              "nodes": 20
+            }
+          }
+        },
+        "balanced": {
+          "task_count": 100,
+          "all_exact_five": true,
+          "reciprocal_pairs": 24,
+          "load_gap_by_class": {
+            "1": 0,
+            "2": 0
+          },
+          "repeated_edge_rate": 0.51,
+          "history_cost": 1020,
+          "graph": {
+            "1": {
+              "components": 2,
+              "nodes": 20
+            },
+            "2": {
+              "components": 2,
+              "nodes": 20
+            }
+          }
+        }
+      },
+      "status": "COMPLETED",
+      "elapsed_seconds": 0.03867469999931927,
+      "before_structure": {
+        "task_count": 100,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 0
+        },
+        "repeated_edge_rate": 0.28,
+        "history_cost": 560,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        }
+      },
+      "after_structure": {
+        "task_count": 100,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 0
+        },
+        "repeated_edge_rate": 0.28,
+        "history_cost": 560,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        }
+      },
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 200,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 20
+          },
+          "2": {
+            "components": 1,
+            "nodes": 20
+          }
+        },
+        "history_cost": 560,
+        "elapsed_seconds": 0.030375,
+        "time_limit_seconds": 60,
+        "constraint_count": 140
+      },
+      "aggregation": [
+        {
+          "scenario": "normal",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0,
+          "errors": {
+            "mean": {
+              "mae": 1.452185478284911,
+              "rmse": 1.8038016622043223
+            },
+            "median": {
+              "mae": 2.115349227368927,
+              "rmse": 2.7788883764581485
+            },
+            "trimmed_mean": {
+              "mae": 1.7251106183914722,
+              "rmse": 2.095393782429331
+            },
+            "sparse_bayes": {
+              "mae": 0.983895861826776,
+              "rmse": 1.159865627815038
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 1,
+          "interval_mean_width": 11.706,
+          "learned_profiles": 20,
+          "prior_profiles": 0,
+          "bias_mae_learned": 0.8820387156634973,
+          "bias_mae_prior": null,
+          "detection": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "false_positive_rate": 0.0,
+            "high_task_count": 0
+          }
+        },
+        {
+          "scenario": "contaminated",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0.1,
+          "errors": {
+            "mean": {
+              "mae": 6.32541732385845,
+              "rmse": 10.809147644891466
+            },
+            "median": {
+              "mae": 3.0013183097619693,
+              "rmse": 3.8012650519576985
+            },
+            "trimmed_mean": {
+              "mae": 4.567301846523596,
+              "rmse": 8.70015534650748
+            },
+            "sparse_bayes": {
+              "mae": 1.1212168766400776,
+              "rmse": 1.437399620630037
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 1,
+          "interval_mean_width": 12.843499999999999,
+          "learned_profiles": 20,
+          "prior_profiles": 0,
+          "bias_mae_learned": 0.8425186553997039,
+          "bias_mae_prior": null,
+          "detection": {
+            "tp": 9,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "false_positive_rate": 0.0,
+            "high_task_count": 9
+          }
+        }
+      ]
+    },
+    {
+      "sizes": [
+        100,
+        40
+      ],
+      "seed": 41,
+      "baselines": {
+        "fixed_five": {
+          "task_count": 700,
+          "all_exact_five": true,
+          "reciprocal_pairs": 25,
+          "load_gap_by_class": {
+            "1": 40,
+            "2": 100
+          },
+          "repeated_edge_rate": 0.11428571428571428,
+          "history_cost": 1600,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 105
+            },
+            "2": {
+              "components": 1,
+              "nodes": 45
+            }
+          }
+        },
+        "random": {
+          "task_count": 700,
+          "all_exact_five": true,
+          "reciprocal_pairs": 15,
+          "load_gap_by_class": {
+            "1": 8,
+            "2": 14
+          },
+          "repeated_edge_rate": 0.08428571428571428,
+          "history_cost": 1180,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 140
+            },
+            "2": {
+              "components": 1,
+              "nodes": 131
+            }
+          }
+        },
+        "balanced": {
+          "task_count": 700,
+          "all_exact_five": true,
+          "reciprocal_pairs": 24,
+          "load_gap_by_class": {
+            "1": 0,
+            "2": 1
+          },
+          "repeated_edge_rate": 0.11714285714285715,
+          "history_cost": 1640,
+          "graph": {
+            "1": {
+              "components": 8,
+              "nodes": 140
+            },
+            "2": {
+              "components": 20,
+              "nodes": 140
+            }
+          }
+        }
+      },
+      "status": "COMPLETED",
+      "elapsed_seconds": 0.46806759999981296,
+      "before_structure": {
+        "task_count": 700,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 1
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        }
+      },
+      "after_structure": {
+        "task_count": 700,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 1
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        }
+      },
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 8000,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.465981,
+        "time_limit_seconds": 60,
+        "constraint_count": 4280
+      },
+      "aggregation": [
+        {
+          "scenario": "normal",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0,
+          "errors": {
+            "mean": {
+              "mae": 2.1340406551655966,
+              "rmse": 2.636478545709126
+            },
+            "median": {
+              "mae": 2.91714321205037,
+              "rmse": 3.6351530003859
+            },
+            "trimmed_mean": {
+              "mae": 2.6016770388463333,
+              "rmse": 3.173239584638747
+            },
+            "sparse_bayes": {
+              "mae": 1.2745619274060052,
+              "rmse": 1.6331913787154757
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 1,
+          "interval_mean_width": 12.301642857142857,
+          "learned_profiles": 40,
+          "prior_profiles": 100,
+          "bias_mae_learned": 0.7544770882633649,
+          "bias_mae_prior": 4.560967091746378,
+          "detection": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "false_positive_rate": 0.0,
+            "high_task_count": 0
+          }
+        },
+        {
+          "scenario": "contaminated",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0.1,
+          "errors": {
+            "mean": {
+              "mae": 8.162834703306844,
+              "rmse": 12.153380553795392
+            },
+            "median": {
+              "mae": 4.419092348680716,
+              "rmse": 8.304746447947844
+            },
+            "trimmed_mean": {
+              "mae": 5.731095927091271,
+              "rmse": 10.143070465146995
+            },
+            "sparse_bayes": {
+              "mae": 2.2371906415772287,
+              "rmse": 6.8169605034306295
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 0.9857142857142858,
+          "interval_mean_width": 13.358428571428572,
+          "learned_profiles": 40,
+          "prior_profiles": 100,
+          "bias_mae_learned": 0.8364993824461806,
+          "bias_mae_prior": 4.560967091746378,
+          "detection": {
+            "tp": 68,
+            "fp": 7,
+            "fn": 7,
+            "precision": 0.9066666666666666,
+            "recall": 0.9066666666666666,
+            "false_positive_rate": 0.0112,
+            "high_task_count": 75
+          }
+        }
+      ]
+    },
+    {
+      "sizes": [
+        100,
+        40
+      ],
+      "seed": 42,
+      "baselines": {
+        "fixed_five": {
+          "task_count": 700,
+          "all_exact_five": true,
+          "reciprocal_pairs": 25,
+          "load_gap_by_class": {
+            "1": 40,
+            "2": 100
+          },
+          "repeated_edge_rate": 0.08714285714285715,
+          "history_cost": 1220,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 105
+            },
+            "2": {
+              "components": 1,
+              "nodes": 45
+            }
+          }
+        },
+        "random": {
+          "task_count": 700,
+          "all_exact_five": true,
+          "reciprocal_pairs": 21,
+          "load_gap_by_class": {
+            "1": 6,
+            "2": 16
+          },
+          "repeated_edge_rate": 0.11142857142857143,
+          "history_cost": 1560,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 140
+            },
+            "2": {
+              "components": 1,
+              "nodes": 130
+            }
+          }
+        },
+        "balanced": {
+          "task_count": 700,
+          "all_exact_five": true,
+          "reciprocal_pairs": 26,
+          "load_gap_by_class": {
+            "1": 0,
+            "2": 1
+          },
+          "repeated_edge_rate": 0.12142857142857143,
+          "history_cost": 1700,
+          "graph": {
+            "1": {
+              "components": 8,
+              "nodes": 140
+            },
+            "2": {
+              "components": 20,
+              "nodes": 140
+            }
+          }
+        }
+      },
+      "status": "COMPLETED",
+      "elapsed_seconds": 0.3489385000002585,
+      "before_structure": {
+        "task_count": 700,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 1
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        }
+      },
+      "after_structure": {
+        "task_count": 700,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 1
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        }
+      },
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 8000,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.346733,
+        "time_limit_seconds": 60,
+        "constraint_count": 4280
+      },
+      "aggregation": [
+        {
+          "scenario": "normal",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0,
+          "errors": {
+            "mean": {
+              "mae": 2.1467559433067196,
+              "rmse": 2.607102029277142
+            },
+            "median": {
+              "mae": 2.865937937418886,
+              "rmse": 3.50344206964255
+            },
+            "trimmed_mean": {
+              "mae": 2.3885668047134243,
+              "rmse": 2.8998370025803952
+            },
+            "sparse_bayes": {
+              "mae": 1.411662613153269,
+              "rmse": 1.9020539512524683
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 1,
+          "interval_mean_width": 12.300928571428573,
+          "learned_profiles": 40,
+          "prior_profiles": 100,
+          "bias_mae_learned": 0.6820151575558584,
+          "bias_mae_prior": 4.703526545430205,
+          "detection": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "false_positive_rate": 0.0,
+            "high_task_count": 0
+          }
+        },
+        {
+          "scenario": "contaminated",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0.1,
+          "errors": {
+            "mean": {
+              "mae": 7.15160343350749,
+              "rmse": 10.85088577318205
+            },
+            "median": {
+              "mae": 3.9727576133953715,
+              "rmse": 7.780673330501217
+            },
+            "trimmed_mean": {
+              "mae": 4.875596619347221,
+              "rmse": 8.577678710471487
+            },
+            "sparse_bayes": {
+              "mae": 2.326845998706227,
+              "rmse": 6.734041909596588
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 0.9785714285714285,
+          "interval_mean_width": 13.097071428571429,
+          "learned_profiles": 40,
+          "prior_profiles": 100,
+          "bias_mae_learned": 0.8604233927883894,
+          "bias_mae_prior": 4.703526545430205,
+          "detection": {
+            "tp": 63,
+            "fp": 7,
+            "fn": 7,
+            "precision": 0.9,
+            "recall": 0.9,
+            "false_positive_rate": 0.011111111111111112,
+            "high_task_count": 70
+          }
+        }
+      ]
+    },
+    {
+      "sizes": [
+        100,
+        40
+      ],
+      "seed": 43,
+      "baselines": {
+        "fixed_five": {
+          "task_count": 700,
+          "all_exact_five": true,
+          "reciprocal_pairs": 25,
+          "load_gap_by_class": {
+            "1": 40,
+            "2": 100
+          },
+          "repeated_edge_rate": 0.10571428571428572,
+          "history_cost": 1480,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 105
+            },
+            "2": {
+              "components": 1,
+              "nodes": 45
+            }
+          }
+        },
+        "random": {
+          "task_count": 700,
+          "all_exact_five": true,
+          "reciprocal_pairs": 25,
+          "load_gap_by_class": {
+            "1": 5,
+            "2": 16
+          },
+          "repeated_edge_rate": 0.10142857142857142,
+          "history_cost": 1420,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 140
+            },
+            "2": {
+              "components": 1,
+              "nodes": 129
+            }
+          }
+        },
+        "balanced": {
+          "task_count": 700,
+          "all_exact_five": true,
+          "reciprocal_pairs": 18,
+          "load_gap_by_class": {
+            "1": 0,
+            "2": 1
+          },
+          "repeated_edge_rate": 0.09714285714285714,
+          "history_cost": 1360,
+          "graph": {
+            "1": {
+              "components": 8,
+              "nodes": 140
+            },
+            "2": {
+              "components": 20,
+              "nodes": 140
+            }
+          }
+        }
+      },
+      "status": "COMPLETED",
+      "elapsed_seconds": 0.605325399999856,
+      "before_structure": {
+        "task_count": 700,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 1
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        }
+      },
+      "after_structure": {
+        "task_count": 700,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 0,
+          "2": 1
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        }
+      },
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 8000,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 140
+          },
+          "2": {
+            "components": 1,
+            "nodes": 140
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.603693,
+        "time_limit_seconds": 60,
+        "constraint_count": 4280
+      },
+      "aggregation": [
+        {
+          "scenario": "normal",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0,
+          "errors": {
+            "mean": {
+              "mae": 2.1841338767852996,
+              "rmse": 2.6768221340436598
+            },
+            "median": {
+              "mae": 3.0643572079127206,
+              "rmse": 3.740828397716951
+            },
+            "trimmed_mean": {
+              "mae": 2.6196169143830295,
+              "rmse": 3.137483384296152
+            },
+            "sparse_bayes": {
+              "mae": 1.528362207333786,
+              "rmse": 2.0319049545686463
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 1,
+          "interval_mean_width": 12.296785714285715,
+          "learned_profiles": 40,
+          "prior_profiles": 100,
+          "bias_mae_learned": 0.5758484848656777,
+          "bias_mae_prior": 5.351174607107993,
+          "detection": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "false_positive_rate": 0.0,
+            "high_task_count": 0
+          }
+        },
+        {
+          "scenario": "contaminated",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0.1,
+          "errors": {
+            "mean": {
+              "mae": 6.779707108464002,
+              "rmse": 9.765074562020313
+            },
+            "median": {
+              "mae": 3.9956597774188807,
+              "rmse": 7.143696303992057
+            },
+            "trimmed_mean": {
+              "mae": 3.8654916847797534,
+              "rmse": 6.87108384898695
+            },
+            "sparse_bayes": {
+              "mae": 2.029635248821376,
+              "rmse": 5.854462171355556
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 0.9857142857142858,
+          "interval_mean_width": 13.012071428571428,
+          "learned_profiles": 40,
+          "prior_profiles": 100,
+          "bias_mae_learned": 0.6179482328489762,
+          "bias_mae_prior": 5.351174607107993,
+          "detection": {
+            "tp": 60,
+            "fp": 2,
+            "fn": 4,
+            "precision": 0.967741935483871,
+            "recall": 0.9375,
+            "false_positive_rate": 0.0031446540880503146,
+            "high_task_count": 62
+          }
+        }
+      ]
+    },
+    {
+      "sizes": [
+        120,
+        40
+      ],
+      "seed": 41,
+      "baselines": {
+        "fixed_five": {
+          "task_count": 800,
+          "all_exact_five": true,
+          "reciprocal_pairs": 25,
+          "load_gap_by_class": {
+            "1": 40,
+            "2": 120
+          },
+          "repeated_edge_rate": 0.11375,
+          "history_cost": 1820,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 125
+            },
+            "2": {
+              "components": 1,
+              "nodes": 45
+            }
+          }
+        },
+        "random": {
+          "task_count": 800,
+          "all_exact_five": true,
+          "reciprocal_pairs": 27,
+          "load_gap_by_class": {
+            "1": 5,
+            "2": 19
+          },
+          "repeated_edge_rate": 0.1025,
+          "history_cost": 1640,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 160
+            },
+            "2": {
+              "components": 1,
+              "nodes": 136
+            }
+          }
+        },
+        "balanced": {
+          "task_count": 800,
+          "all_exact_five": true,
+          "reciprocal_pairs": 33,
+          "load_gap_by_class": {
+            "1": 1,
+            "2": 0
+          },
+          "repeated_edge_rate": 0.10625,
+          "history_cost": 1700,
+          "graph": {
+            "1": {
+              "components": 8,
+              "nodes": 160
+            },
+            "2": {
+              "components": 24,
+              "nodes": 160
+            }
+          }
+        }
+      },
+      "status": "COMPLETED",
+      "elapsed_seconds": 0.36544429999958083,
+      "before_structure": {
+        "task_count": 800,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 1,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        }
+      },
+      "after_structure": {
+        "task_count": 800,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 1,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        }
+      },
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 9600,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.3619,
+        "time_limit_seconds": 60,
+        "constraint_count": 5120
+      },
+      "aggregation": [
+        {
+          "scenario": "normal",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0,
+          "errors": {
+            "mean": {
+              "mae": 2.0182218665789966,
+              "rmse": 2.4578568475597162
+            },
+            "median": {
+              "mae": 2.97491731317844,
+              "rmse": 3.616986560323196
+            },
+            "trimmed_mean": {
+              "mae": 2.395957159856052,
+              "rmse": 2.8754024773718934
+            },
+            "sparse_bayes": {
+              "mae": 1.3711440390932976,
+              "rmse": 1.8017013914979565
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 1,
+          "interval_mean_width": 11.764312499999999,
+          "learned_profiles": 40,
+          "prior_profiles": 120,
+          "bias_mae_learned": 0.5522854182551313,
+          "bias_mae_prior": 4.603089154407344,
+          "detection": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "false_positive_rate": 0.0,
+            "high_task_count": 0
+          }
+        },
+        {
+          "scenario": "contaminated",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0.1,
+          "errors": {
+            "mean": {
+              "mae": 7.8914569854334236,
+              "rmse": 11.564398981816968
+            },
+            "median": {
+              "mae": 3.9653122451920018,
+              "rmse": 7.494076555248326
+            },
+            "trimmed_mean": {
+              "mae": 4.86902168215831,
+              "rmse": 8.59377296770874
+            },
+            "sparse_bayes": {
+              "mae": 2.1567778914869886,
+              "rmse": 6.562541921293862
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 0.9875,
+          "interval_mean_width": 12.5944375,
+          "learned_profiles": 40,
+          "prior_profiles": 120,
+          "bias_mae_learned": 0.7116534797722477,
+          "bias_mae_prior": 4.603089154407344,
+          "detection": {
+            "tp": 79,
+            "fp": 11,
+            "fn": 5,
+            "precision": 0.8777777777777778,
+            "recall": 0.9404761904761905,
+            "false_positive_rate": 0.015363128491620111,
+            "high_task_count": 90
+          }
+        }
+      ]
+    },
+    {
+      "sizes": [
+        120,
+        40
+      ],
+      "seed": 42,
+      "baselines": {
+        "fixed_five": {
+          "task_count": 800,
+          "all_exact_five": true,
+          "reciprocal_pairs": 25,
+          "load_gap_by_class": {
+            "1": 40,
+            "2": 120
+          },
+          "repeated_edge_rate": 0.0875,
+          "history_cost": 1400,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 125
+            },
+            "2": {
+              "components": 1,
+              "nodes": 45
+            }
+          }
+        },
+        "random": {
+          "task_count": 800,
+          "all_exact_five": true,
+          "reciprocal_pairs": 27,
+          "load_gap_by_class": {
+            "1": 6,
+            "2": 21
+          },
+          "repeated_edge_rate": 0.09375,
+          "history_cost": 1500,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 160
+            },
+            "2": {
+              "components": 1,
+              "nodes": 139
+            }
+          }
+        },
+        "balanced": {
+          "task_count": 800,
+          "all_exact_five": true,
+          "reciprocal_pairs": 25,
+          "load_gap_by_class": {
+            "1": 1,
+            "2": 0
+          },
+          "repeated_edge_rate": 0.09625,
+          "history_cost": 1540,
+          "graph": {
+            "1": {
+              "components": 8,
+              "nodes": 160
+            },
+            "2": {
+              "components": 24,
+              "nodes": 160
+            }
+          }
+        }
+      },
+      "status": "COMPLETED",
+      "elapsed_seconds": 0.29603880000013305,
+      "before_structure": {
+        "task_count": 800,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 1,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        }
+      },
+      "after_structure": {
+        "task_count": 800,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 1,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        }
+      },
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 9600,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.294831,
+        "time_limit_seconds": 60,
+        "constraint_count": 5120
+      },
+      "aggregation": [
+        {
+          "scenario": "normal",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0,
+          "errors": {
+            "mean": {
+              "mae": 2.1112538164126184,
+              "rmse": 2.586980767883394
+            },
+            "median": {
+              "mae": 2.7466994105433313,
+              "rmse": 3.3803173939883937
+            },
+            "trimmed_mean": {
+              "mae": 2.3764853098232144,
+              "rmse": 2.9158403350544324
+            },
+            "sparse_bayes": {
+              "mae": 1.3632933156563887,
+              "rmse": 1.762023014889277
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 1,
+          "interval_mean_width": 11.756,
+          "learned_profiles": 40,
+          "prior_profiles": 120,
+          "bias_mae_learned": 0.7173871602122093,
+          "bias_mae_prior": 4.579772579497399,
+          "detection": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "false_positive_rate": 0.0,
+            "high_task_count": 0
+          }
+        },
+        {
+          "scenario": "contaminated",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0.1,
+          "errors": {
+            "mean": {
+              "mae": 6.906172889568228,
+              "rmse": 10.13247293210995
+            },
+            "median": {
+              "mae": 3.332488812201081,
+              "rmse": 5.793058087806932
+            },
+            "trimmed_mean": {
+              "mae": 3.9369603004363487,
+              "rmse": 7.065097707221434
+            },
+            "sparse_bayes": {
+              "mae": 1.7241025046166643,
+              "rmse": 4.555625304203876
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 0.99375,
+          "interval_mean_width": 12.5115625,
+          "learned_profiles": 40,
+          "prior_profiles": 120,
+          "bias_mae_learned": 0.7023170990644096,
+          "bias_mae_prior": 4.579772579497399,
+          "detection": {
+            "tp": 73,
+            "fp": 11,
+            "fn": 3,
+            "precision": 0.8690476190476191,
+            "recall": 0.9605263157894737,
+            "false_positive_rate": 0.015193370165745856,
+            "high_task_count": 84
+          }
+        }
+      ]
+    },
+    {
+      "sizes": [
+        120,
+        40
+      ],
+      "seed": 43,
+      "baselines": {
+        "fixed_five": {
+          "task_count": 800,
+          "all_exact_five": true,
+          "reciprocal_pairs": 25,
+          "load_gap_by_class": {
+            "1": 40,
+            "2": 120
+          },
+          "repeated_edge_rate": 0.09875,
+          "history_cost": 1580,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 125
+            },
+            "2": {
+              "components": 1,
+              "nodes": 45
+            }
+          }
+        },
+        "random": {
+          "task_count": 800,
+          "all_exact_five": true,
+          "reciprocal_pairs": 15,
+          "load_gap_by_class": {
+            "1": 7,
+            "2": 14
+          },
+          "repeated_edge_rate": 0.085,
+          "history_cost": 1360,
+          "graph": {
+            "1": {
+              "components": 1,
+              "nodes": 160
+            },
+            "2": {
+              "components": 1,
+              "nodes": 137
+            }
+          }
+        },
+        "balanced": {
+          "task_count": 800,
+          "all_exact_five": true,
+          "reciprocal_pairs": 26,
+          "load_gap_by_class": {
+            "1": 1,
+            "2": 0
+          },
+          "repeated_edge_rate": 0.11375,
+          "history_cost": 1820,
+          "graph": {
+            "1": {
+              "components": 8,
+              "nodes": 160
+            },
+            "2": {
+              "components": 24,
+              "nodes": 160
+            }
+          }
+        }
+      },
+      "status": "COMPLETED",
+      "elapsed_seconds": 0.3622806000003038,
+      "before_structure": {
+        "task_count": 800,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 1,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        }
+      },
+      "after_structure": {
+        "task_count": 800,
+        "all_exact_five": true,
+        "reciprocal_pairs": 0,
+        "load_gap_by_class": {
+          "1": 1,
+          "2": 0
+        },
+        "repeated_edge_rate": 0,
+        "history_cost": 0,
+        "graph": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        }
+      },
+      "diagnostics": {
+        "solver": "scipy.optimize.milp/HiGHS",
+        "solver_status": 0,
+        "candidate_count": 9600,
+        "graph_before": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "graph_after": {
+          "1": {
+            "components": 1,
+            "nodes": 160
+          },
+          "2": {
+            "components": 1,
+            "nodes": 160
+          }
+        },
+        "history_cost": 0,
+        "elapsed_seconds": 0.358795,
+        "time_limit_seconds": 60,
+        "constraint_count": 5120
+      },
+      "aggregation": [
+        {
+          "scenario": "normal",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0,
+          "errors": {
+            "mean": {
+              "mae": 1.8520245387994436,
+              "rmse": 2.391641367879364
+            },
+            "median": {
+              "mae": 2.6999398750391865,
+              "rmse": 3.414762584028731
+            },
+            "trimmed_mean": {
+              "mae": 2.2039855566631834,
+              "rmse": 2.800422957898971
+            },
+            "sparse_bayes": {
+              "mae": 1.2638584008699156,
+              "rmse": 1.762337816236914
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 1,
+          "interval_mean_width": 11.762375,
+          "learned_profiles": 40,
+          "prior_profiles": 120,
+          "bias_mae_learned": 0.6664394393765676,
+          "bias_mae_prior": 5.2525982373980495,
+          "detection": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "false_positive_rate": 0.0,
+            "high_task_count": 0
+          }
+        },
+        {
+          "scenario": "contaminated",
+          "truth_distribution": "uniform(40,90)",
+          "bias_distribution": "class-centered uniform(-10,10)",
+          "noise_std": 3,
+          "contamination_rate": 0.1,
+          "errors": {
+            "mean": {
+              "mae": 6.885246813555939,
+              "rmse": 9.987954605995984
+            },
+            "median": {
+              "mae": 3.3802052824853526,
+              "rmse": 4.335140308766287
+            },
+            "trimmed_mean": {
+              "mae": 3.9246234296939804,
+              "rmse": 6.996151307057925
+            },
+            "sparse_bayes": {
+              "mae": 1.7324708324648155,
+              "rmse": 2.7617474134082975
+            }
+          },
+          "fallback_by_direction": [
+            null,
+            null
+          ],
+          "interval_coverage": 0.9875,
+          "interval_mean_width": 12.4865,
+          "learned_profiles": 40,
+          "prior_profiles": 120,
+          "bias_mae_learned": 0.6245580601095446,
+          "bias_mae_prior": 5.2525982373980495,
+          "detection": {
+            "tp": 70,
+            "fp": 12,
+            "fn": 4,
+            "precision": 0.8536585365853658,
+            "recall": 0.9459459459459459,
+            "false_positive_rate": 0.01652892561983471,
+            "high_task_count": 82
+          }
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "normal": {
+      "mean": {
+        "mae_mean": 1.954735647019598,
+        "mae_std": 0.2440282574311865
+      },
+      "median": {
+        "mae_mean": 2.700342916702778,
+        "mae_std": 0.36017346596411093
+      },
+      "trimmed_mean": {
+        "mae_mean": 2.315080067240424,
+        "mae_std": 0.25521569733902516
+      },
+      "sparse_bayes": {
+        "mae_mean": 1.2629706023152305,
+        "mae_std": 0.17094271273664144
+      }
+    },
+    "contaminated": {
+      "mean": {
+        "mae_mean": 6.966869158232656,
+        "mae_std": 0.6668002788066356
+      },
+      "median": {
+        "mae_mean": 3.861747079582584,
+        "mae_std": 0.9558860270170736
+      },
+      "trimmed_mean": {
+        "mae_mean": 4.572066276899684,
+        "mae_std": 0.7366268354069353
+      },
+      "sparse_bayes": {
+        "mae_mean": 2.1470292973192415,
+        "mae_std": 0.9653731589063563
+      }
+    }
+  }
+}
